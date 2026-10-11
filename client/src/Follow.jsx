@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { storeKey } from './event.js';
 import * as fx from './fx.js';
 
-const FOLLOW_KEY = storeKey('follow');
+const followKey = () => storeKey('follow');
 const read = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
 const norm = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -29,12 +29,12 @@ function knownNames(state, teams) {
 // ---------- 1. Follow your team ----------
 
 export function useFollow(state, show) {
-  const [name, setName] = useState(() => read(FOLLOW_KEY) ?? '');
+  const [name, setName] = useState(() => read(followKey()) ?? '');
   const teams = useMemo(() => visibleTeams(state, show), [state, show]);
   const team = name ? teams.find(t => Object.values(t.players).some(p => norm(p) === norm(name))) ?? null : null;
   const follow = n => {
     const v = n.trim().replace(/\s+/g, ' ');
-    write(FOLLOW_KEY, v || null);
+    write(followKey(), v || null);
     setName(v);
   };
   return { name, team, teams, follow };

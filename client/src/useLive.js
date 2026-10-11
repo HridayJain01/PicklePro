@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { EVENT, storeKey } from './event.js';
+import { getEvent, storeKey } from './event.js';
 import * as fx from './fx.js';
 
-const CACHE_KEY = storeKey('last-state');
+const cacheKey = () => storeKey('last-state');
 function cachedState() {
   try {
-    return JSON.parse(localStorage.getItem(CACHE_KEY));
+    return JSON.parse(localStorage.getItem(cacheKey()));
   } catch {
     return null;
   }
@@ -44,7 +44,7 @@ export function useLive(role = 'audience') {
   const [announce, setAnnounce] = useState(null);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId(), event: EVENT } });
+    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId(), event: getEvent() } });
     socketRef.current = socket;
     const say = (a, ms) => {
       setAnnounce({ ...a, key: Date.now() });
@@ -90,7 +90,7 @@ export function useLive(role = 'audience') {
       }
       setState(s);
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(s));
+        localStorage.setItem(cacheKey(), JSON.stringify(s));
       } catch { /* storage unavailable: live state still works */ }
       setShow(prev => {
         if (s.pending) return prev?.actionId === s.pending.actionId ? prev : { ...s.pending, candidates: s.remaining, phase: 'spinning' };

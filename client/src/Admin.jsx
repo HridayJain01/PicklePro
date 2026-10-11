@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
-import { API, pageUrl } from './event.js';
+import { apiBase, pageUrl } from './event.js';
 import { DrawSwitch } from './DrawSwitch.jsx';
 import { FloatingReactions } from './Audience.jsx';
 import { downloadGallery } from './gallery.js';
@@ -159,7 +159,7 @@ function Controls({ state, data, run, busy, show, connected }) {
         <button className="btn btn-spin" disabled={busy} onClick={() => run(() => downloadReport(state))}>Download PDF report</button>
         <div className="controls-row">
           <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadGallery(state))}>Teams gallery image</button>
-          <a className="btn btn-small" href={`${API}/export.xlsx`}>Export Excel</a>
+          <a className="btn btn-small" href={`${apiBase()}/export.xlsx`}>Export Excel</a>
         </div>
       </div>
     );
@@ -203,7 +203,7 @@ function Controls({ state, data, run, busy, show, connected }) {
       {reason && <p className="controls-note">{reason}</p>}
       <div className="controls-row">
         <button className="btn btn-small" disabled={busy || !canUndo || !connected} onClick={undo}>Undo last draw</button>
-        <a className="btn btn-small" href={`${API}/export.xlsx`}>Export Excel</a>
+        <a className="btn btn-small" href={`${apiBase()}/export.xlsx`}>Export Excel</a>
         <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadReport(state))}>PDF report</button>
       </div>
       {data.history.length === 0 && <p className="controls-note">Spin results are saved the moment they're drawn.</p>}
@@ -473,7 +473,7 @@ function Archive({ state }) {
                   <td>{new Date(t.createdAt).toLocaleString()}</td>
                   <td>{STATUS[t.status]}</td>
                   <td>{t.draws}/{t.teamCount * t.categories.length}</td>
-                  <td><a className="btn btn-small" href={`${API}/export.xlsx?tournament=${t.id}`}>Export Excel</a></td>
+                  <td><a className="btn btn-small" href={`${apiBase()}/export.xlsx?tournament=${t.id}`}>Export Excel</a></td>
                 </tr>
               ))}
             </tbody>

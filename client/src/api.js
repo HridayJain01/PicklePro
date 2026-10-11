@@ -1,10 +1,10 @@
-import { API } from './event.js';
+import { apiBase } from './event.js';
 
 // /auth/* is shared by both events; everything else goes to this page's event (/api or /api/kids).
 export async function api(path, { method = 'GET', body } = {}) {
   let res;
   try {
-    res = await fetch(`${path.startsWith('/auth/') ? '/api' : API}${path}`, {
+    res = await fetch(`${path.startsWith('/auth/') ? '/api' : apiBase()}${path}`, {
       method,
       headers: body ? { 'content-type': 'application/json' } : {},
       body: body && JSON.stringify(body),
