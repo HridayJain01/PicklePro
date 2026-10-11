@@ -15,7 +15,23 @@ function cachedState() {
 // phase: 'spinning' (server picked, result still hidden) -> 'landing' (result known, reel slows) -> 'done'.
 // The server decides everything; this only sequences the presentation, keyed by actionId so a
 // repeated or late event never replays an animation.
-export function useLive() {
+// One random id per browser (localStorage), sent with the connection so the server can count
+// audience browsers once each, however many tabs or reconnects.
+function viewerId() {
+  try {
+    let id = localStorage.getItem('team-draw:viewer');
+    if (!id) {
+      id = crypto.randomUUID?.() ?? `v-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem('team-draw:viewer', id);
+    }
+    return id;
+  } catch {
+    return `v-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+  }
+}
+
+// role: 'audience' (phones), 'host' (/admin) or 'screen' (/screen); only audience is counted.
+export function useLive(role = 'audience') {
   const [state, setState] = useState(cachedState);
   const [connected, setConnected] = useState(null); // null = not connected yet
   const [show, setShow] = useState(null);
@@ -27,7 +43,7 @@ export function useLive() {
   const [announce, setAnnounce] = useState(null);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined);
+    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId() } });
     socketRef.current = socket;
     const say = (a, ms) => {
       setAnnounce({ ...a, key: Date.now() });

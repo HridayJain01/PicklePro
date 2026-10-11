@@ -404,8 +404,8 @@ test('every draw is provably fair: sealed before the spin, verifiable after', as
   assert.ok(history.every(h => /^[0-9a-f]{64}$/.test(h.commitment) && /^[0-9a-f]{64}$/.test(h.salt)));
 });
 
-const socketTo = async () => {
-  const s = connect(`http://127.0.0.1:${server.port}`, { transports: ['websocket'] });
+const socketTo = async (auth = {}) => {
+  const s = connect(`http://127.0.0.1:${server.port}`, { transports: ['websocket'], auth });
   await new Promise(resolve => s.once('tournament:state', resolve));
   return s;
 };
@@ -506,22 +506,36 @@ test('audience ticker and viewer count', async t => {
   assert.equal(s.recent[0].name, s.teams[5].players.WOMEN);
   assert.equal(s.recent[0].label, 'Women');
 
-  // Relative to whatever is connected already (sockets from earlier tests may still be closing),
-  // and waiting for the update instead of sleeping a fixed time: robust on slow CI machines.
-  const a = await socketTo();
-  t.after(() => a.close());
+  // Viewer rule: distinct audience browsers (by their localStorage id) with a live connection.
+  const audience = id => socketTo({ role: 'audience', viewer: `viewer-${id}-0000` });
+  const host = await socketTo({ role: 'host', viewer: 'viewer-host-0000' });
+  const screen = await socketTo({ role: 'screen', viewer: 'viewer-screen-000' });
+  const watcher = await socketTo(); // no role (e.g. an old cached page): not counted either
+  t.after(() => [host, screen, watcher].forEach(s => s.close()));
   let latest = null;
-  a.on('viewers', v => { latest = v.count; });
+  watcher.on('viewers', v => { latest = v.count; });
   const settle = async () => {
     let prev = -1;
-    for (let i = 0; i < 40 && latest !== prev; i++) { prev = latest; await pause(2500); }
+    for (let i = 0; i < 20 && latest !== prev; i++) { prev = latest; await pause(1800); }
     return latest;
   };
-  const before = await settle();
-  const b = await socketTo();
-  const withB = await settle();
-  assert.equal(withB, before + 1, `one more viewer: ${before} -> ${withB}`);
-  b.close();
-  const after = await settle();
-  assert.equal(after, before, `back down: ${withB} -> ${after}`);
+  const base = (await settle()) ?? 0; // no audience sockets yet (earlier tests connect without a role)
+
+  const p1 = await audience('one');
+  const p2 = await audience('two');
+  const p3 = await audience('three');
+  assert.equal(await settle(), base + 3, 'three people, host and projector excluded');
+  const p1tab2 = await audience('one'); // same browser, second tab
+  assert.equal(await settle(), base + 3, 'a second tab in the same browser counts once');
+  p2.close(); // one person leaves
+  assert.equal(await settle(), base + 2);
+  p3.close(); // refresh: old connection closes, the same browser reconnects
+  const p3again = await audience('three');
+  assert.equal(await settle(), base + 2, 'refresh does not inflate the count');
+  p1.close(); // close one of two tabs: that browser is still watching
+  assert.equal(await settle(), base + 2);
+  const p2back = await audience('two'); // reconnect
+  assert.equal(await settle(), base + 3);
+  [p1tab2, p3again, p2back].forEach(s => s.close());
+  assert.equal(await settle(), base);
 });

@@ -10,29 +10,32 @@
 .layout-audience { padding-bottom: 24px; }
 .teams-section { min-width: 0; }
 
-/* ---------- SP Tech: top strip (credit + tagline + WhatsApp) ---------- */
+/* ---------- SP Tech: slim top strip (credit + call chips + WhatsApp pill) ---------- */
 .credit-strip {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px 16px;
-  padding: 10px 16px; background: rgb(11 31 82 / 0.9); border-bottom: 1px solid rgb(108 192 74 / 0.35);
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
+  padding: 6px 12px; background: rgb(11 31 82 / 0.9); border-bottom: 1px solid rgb(108 192 74 / 0.3); font-size: 0.8rem;
 }
-.credit-id { display: flex; align-items: center; gap: 10px; }
-.credit-label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.68rem; }
-.credit-tagline { margin: 0; font-weight: 700; color: var(--line); font-size: 0.95rem; text-align: center; }
-.credit-tagline em { font-style: normal; color: var(--paddle-green); }
-.wa-btn {
-  display: inline-grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
-  min-height: 46px; padding: 10px 16px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 0.95rem;
-  background: #1fb257; color: #fff; border: 2px solid transparent;
-  transition: background-color 0.15s, transform 0.08s; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+.credit-id { display: inline-flex; align-items: center; gap: 6px; }
+.credit-label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.66rem; }
+.credit-contacts { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.credit-chip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 10px; border-radius: 999px; text-decoration: none;
+  border: 1px solid rgb(255 255 255 / 0.22); color: var(--line); font-weight: 700; white-space: nowrap;
 }
-.wa-btn:hover { background: #17a04c; }
-.wa-btn:active { transform: scale(0.98); background: #138a40; }
-.wa-btn:focus-visible { outline: 3px solid var(--ball); outline-offset: 3px; }
-.wa-arrow { font-size: 1.1rem; }
-@media (max-width: 760px) {
-  .credit-strip { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 8px; padding: 10px 14px 12px; }
-  .wa-btn { width: 100%; }
+.credit-num { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.credit-chip:hover { border-color: var(--paddle-green); }
+.credit-chip:focus-visible, .wa-pill:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+.wa-pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px 4px 8px; border-radius: 999px;
+  text-decoration: none; font-weight: 800; font-size: 0.8rem; white-space: nowrap;
+  background: #1fb257; color: #fff; transition: background-color 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+.wa-pill svg { width: 18px; height: 18px; }
+.wa-pill:hover { background: #17a04c; }
+.wa-pill:active { transform: scale(0.97); background: #138a40; }
+@media (max-width: 330px) { .credit-num { display: none; } }
+@media (max-width: 520px) { .credit-strip { gap: 6px 10px; padding: 6px 8px; } .credit-contacts { order: -1; width: 100%; } .credit-chip { padding: 4px 8px; gap: 4px; } }
 
 .sp-mark { position: relative; display: inline-flex; align-items: baseline; gap: 0.18em; font: 900 2.6rem/1 var(--body); letter-spacing: -0.02em; color: #fff; padding-top: 0.25em; }
 .sp-mark b { font-style: italic; font-weight: 900; }
@@ -46,6 +49,9 @@
   margin: 8px auto calc(88px + env(safe-area-inset-bottom)); padding: 22px 16px 18px; width: min(720px, calc(100% - 32px));
   border-radius: 16px; background: var(--net); border: 1px solid rgb(108 192 74 / 0.3);
 }
+.brand-tagline { margin: 0; font-weight: 700; color: var(--line); }
+.brand-tagline em { font-style: normal; color: var(--paddle-green); }
+.brand-footer .wa-pill { font-size: 0.9rem; min-height: 40px; padding: 6px 16px 6px 10px; }
 .brand-footer-kicker { margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.72rem; }
 .brand-people { list-style: none; margin: 4px 0 0; padding: 0; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .brand-person {
@@ -155,7 +161,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .floaters span, .announce-icon { animation: none !important; }
-  .wa-btn, .brand-person { transition: none; }
+  .wa-pill, .brand-person { transition: none; }
 }
 
 /* ---------- Follow your team ---------- */
@@ -224,3 +230,9 @@
 .predict-closed-note { margin: 0; color: var(--line); font-weight: 600; }
 .join button, .predict-open { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .join button:active, .predict-open:active { transform: scale(0.98); }
+
+/* ---------- Bigger ICC logo in the header ---------- */
+.topbar .brand-logo { width: 68px; height: 68px; }
+@media (min-width: 760px) { .topbar .brand-logo { width: 84px; height: 84px; } }
+@media (max-width: 360px) { .topbar .brand-logo { width: 58px; height: 58px; } }
+.topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }

@@ -55,7 +55,7 @@ Live team-draw app for the **ICC Pickleball** 28-team doubles tournament. The ho
 6. **Bottom**: "Built & developed by SP Tech" + **Sidh Jain 90671 27688** and **Pinkesh Valdria 96536 72196** call cards (side by side; stacked under 420 px). Contacts appear only here (`client/src/Brand.jsx`).
 
 ### Audience participation (phones)
-- **👀 N watching** in the header (all open screens; server `viewers` event, sent at most every 2 s when it changes; hidden when only 1).
+- **👀 N watching** in the header. **Counting rule:** distinct *audience browsers* with a live connection. Each browser sends a random id (localStorage `team-draw:viewer`) with its Socket.IO connection (`auth: { role, viewer }`); refreshes, reconnects and extra tabs in the same browser count once; `/admin` (role `host`) and `/screen` (role `screen`) are excluded. Dead phones drop out within ~20 s (pingInterval/pingTimeout 10 s). It counts browsers, not people. Broadcast at most every 1.5 s when it changes; hidden when ≤ 1.
 - **Latest picks ticker** under the stage: last 5 one-by-one picks, newest first (`state.recent`, revealed only; a pick still landing on that phone is held back).
 - **Sticky "Now drawing" bar** (`NowBar.jsx`): when the stage scrolls off screen, a slim top bar shows "🎰 Women · Team 7 · spinning…" → "✅ Anya Kumar → Team 7" / "Up next: …"; tap to jump back to the reel.
 - **⭐ Follow your team** (`Follow.jsx`) — type your name (suggestions from all known names, any case). Card shows "Your team · Team N" with every category (your name highlighted, "Drawing now…" / "To be drawn"), a **Show on board** button, and the board card gets a ⭐ Your team tag. When you get drawn: big "🎉 You're in Team N!" pop-up + fanfare + confetti + long buzz; when a teammate joins: "🤝 X joined your team!" + buzz. Pop-ups wait until the reel has landed on that phone (no spoilers) and never fire on page load or when you start following.
@@ -226,6 +226,17 @@ Host phone remote, read winner names aloud (commentator voice), configurable tea
 ## Change log
 
 Newest first. Add an entry for every change.
+
+### 2026-10-12 — Feedback fixes (branch `feedback-fixes`, preview first)
+- **Sound** rebuilt (`client/src/sound.js`; `fx.js` now = confetti + re-export): one master gain + compressor; mute cancels every scheduled timer and long-running sound instantly; unlock inside the tap (silent buffer + `resume()`), `navigator.audioSession.type = 'playback'` so the iPhone silent switch doesn't mute it; honest toggle states (`on` / `off` / `locked` = "Tap to resume sound" after a refresh, resumed by the next tap anywhere); listens to context state changes. Diagnostics: `activeSounds()`.
+- **Draw audio**: removed the per-name "tik" and the 1.4 s pock loop. New primary **slot-machine** sound (`slotReel`: arcade motor whose pitch/flutter follow the reel speed; soft "clunk" per name only once it's slow), **near-miss** sting, **jackpot** reveal. Paddle "pock" only on real paddle hits (`animationiteration`), soft, throttled. Crowd murmur and drumroll quieter.
+- **Reel**: 13 rows/s; longer ease-out (3–5.2 s) ending in a deliberate near-miss on **every** one-by-one spin (`stall` one name short then slide on, or `overshoot` just past then settle back; chosen from the draw id so all screens match). Always ends on the server's winner (verified in the browser on 6 spins).
+- **Viewer count** fixed (see counting rule above); new test covers 3 people, second tab, host/projector excluded, leave, refresh, close-one-tab, reconnect.
+- **Branding**: ICC logo 68 px (84 px ≥ 760 px wide); slim top strip with tap-to-call Sidh/Pinkesh + compact WhatsApp pill (two rows on phones, one on desktop); footer keeps credit, tagline, contact cards, compact WhatsApp pill; one shared contact list.
+- Tests 22/22, build OK, no console errors. Server part (viewer count) goes live only when merged to `main`.
+
+### 2026-10-11 — CI fix (`8f5c151`)
+- CI failed on `92d41c3` (all tests pass locally on Node 22 and 24); the timing-sensitive viewer-count test was made relative to the starting count and waits for updates instead of fixed sleeps. CI green again. (Note: don't pass `--test-timeout` to the whole run — in Node 22 it also limits the whole test file, which takes ~30 s.)
 
 ### 2026-10-11 — Audience polish: branding layout, smooth rally, tap game removed, prediction switch, faster taps
 - **Branding**: tagline + WhatsApp moved into the top strip next to the SP Tech credit; developer credit + contact cards moved to the very bottom under all teams; contacts no longer duplicated; WhatsApp message updated; aria-labels, hover/pressed/focus states.

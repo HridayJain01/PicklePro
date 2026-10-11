@@ -72,7 +72,7 @@ function Login({ onLogin }) {
 }
 
 function Dashboard({ onLogout }) {
-  const { state, connected, show, finish, onReaction, announce } = useLive();
+  const { state, connected, show, finish, onReaction, announce } = useLive('host');
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

@@ -3,31 +3,38 @@ import { Announce } from './Audience.jsx';
 import { verify } from './fair.js';
 import * as fx from './fx.js';
 
-const SPEED = 16; // rows per second at full spin
+const SPEED = 13; // rows per second at full spin: fast, but names stay readable
 const VISIBLE = 3; // rows rendered either side of the centre line
 const mod = (a, n) => ((a % n) + n) % n;
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-// Slot-machine reel. Spins until the server's result arrives, then eases out so the winner
+// Slot-machine reel. Spins until the server's result arrives, then slows down so the winner
 // stops exactly on the centre line. Purely visual: the winner is given, never chosen here.
-// Some spins "nearly" stop one name early, then creep onto the winner. Chosen from the draw's id
-// so every screen plays the same tease; it only changes the animation, never the result.
-const TEASE_MS = 1400;
-const isTease = actionId => Boolean(actionId) && parseInt(actionId.replace(/-/g, '').slice(0, 6), 16) % 100 < 40;
+//
+// Every one-by-one spin ends with a deliberate near-miss, picked from the draw's id so every
+// screen plays the same one: 'stall' creeps to one name short, then slides onto the winner;
+// 'overshoot' slips just past the winner, then settles back onto it. Either way the reel ends
+// on the server's winner — the tease only shapes the animation.
+const TEASE_MS = 1300;
+const teaseOf = actionId => {
+  if (!actionId) return null;
+  return parseInt(actionId.replace(/-/g, '').slice(0, 6), 16) % 2 ? 'overshoot' : 'stall';
+};
+const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 // Performance: while the reel moves, React does not re-render. Each frame only sets a GPU
 // transform on the list, and the 7 visible names are rewritten in place when a row passes.
-function Reel({ names, phase, winner, onLanded, tease = false, onLandingStart }) {
+function Reel({ names, phase, winner, onLanded, tease = null }) {
   const n = names.length;
   const start = Math.max(0, names.indexOf(winner));
-  const motion = useRef({ pos: start });
+  const motion = useRef({ pos: start, speed: 0 });
   const listRef = useRef(null);
   const rowRefs = useRef([]);
   const landed = useRef(onLanded);
   landed.current = onLanded;
-  const landingStart = useRef(onLandingStart);
-  landingStart.current = onLandingStart;
   const [teasing, setTeasing] = useState(false);
+  const moving = phase === 'spinning' || phase === 'landing';
+  const reelSound = useSlotSound(moving, motion);
 
   // Draws position `p` straight into the DOM (no React render).
   const lastBase = useRef(null);
@@ -45,7 +52,7 @@ function Reel({ names, phase, winner, onLanded, tease = false, onLandingStart })
   useEffect(() => {
     lastBase.current = null;
     draw(phase === 'done' && names.includes(winner) ? names.indexOf(winner) : motion.current.pos);
-    if (phase !== 'spinning' && phase !== 'landing') return;
+    if (!moving) return;
     const m = motion.current;
     const target = names.indexOf(winner);
     if (reducedMotion()) {
@@ -59,54 +66,62 @@ function Reel({ names, phase, winner, onLanded, tease = false, onLandingStart })
     let hold;
     let teaseTimer;
     if (phase === 'landing') {
-      // Travel at least one second's worth of rows, ending on the winner. Duration is set so
-      // the ease-out starts at roughly the spinning speed (cubic ease: v0 = 3D/L).
-      const base = Math.ceil(m.pos + SPEED);
+      // Travel at least ~1.5 s worth of rows, then a long ease-out: the slow-down is the suspense.
+      const base = Math.ceil(m.pos + SPEED * 1.5);
       const distance = base + mod(target - base, n) - m.pos;
-      plan = { from: m.pos, distance, ms: Math.min(5500, Math.max(2500, (3 * distance * 1000) / SPEED)), t0: performance.now() };
-      plan.tease = tease && n > 2 ? 0.55 : 0;
-      plan.total = plan.ms + (plan.tease ? TEASE_MS : 0);
-      landingStart.current?.(plan.total);
-      if (plan.tease) {
+      const kind = n > 2 ? tease : null;
+      // 'stall' stops 0.55 rows short; 'overshoot' runs 0.4 rows past. Then the tease closes the gap.
+      const offset = kind === 'stall' ? -0.55 : kind === 'overshoot' ? 0.4 : 0;
+      plan = {
+        from: m.pos,
+        main: distance + offset,
+        offset,
+        ms: Math.min(5200, Math.max(3000, (3 * distance * 1000) / SPEED)),
+        t0: performance.now(),
+      };
+      plan.total = plan.ms + (offset ? TEASE_MS : 0);
+      if (offset) {
         teaseTimer = setTimeout(() => {
           setTeasing(true);
-          fx.ohh();
-        }, plan.ms);
+          fx.nearMiss();
+        }, plan.ms - 150);
       }
       // A timer, not the frame loop, ends the reveal: frames pause in background tabs.
-      hold = setTimeout(() => landed.current?.(), plan.total + 500);
+      hold = setTimeout(() => landed.current?.(), plan.total + 400);
     }
     let raf;
     let last = performance.now();
-    let lastRow = Math.floor(m.pos);
-    let lastTick = 0;
+    let lastRow = Math.floor(m.pos + 0.5);
+    let lastSpeedPush = 0;
     const tick = now => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      const before = m.pos;
       if (plan) {
         const elapsed = now - plan.t0;
-        const main = plan.distance - plan.tease;
         if (elapsed < plan.ms) {
           const t = elapsed / plan.ms;
-          m.pos = plan.from + main * (1 - (1 - t) ** 3);
+          m.pos = plan.from + plan.main * (1 - (1 - t) ** 3);
         } else {
-          // The tease: stalls just short of the line, then creeps over onto the winner.
           const t = Math.min(1, (elapsed - plan.ms) / TEASE_MS);
-          const ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-          m.pos = plan.from + main + plan.tease * ease;
+          m.pos = plan.from + plan.main - plan.offset * easeInOut(t);
         }
       } else {
         m.pos += SPEED * dt;
       }
-      // Click as each name crosses the line, so the slow-down is heard as well as seen.
-      const row = Math.floor(m.pos + 0.5);
-      if (row !== lastRow && now - lastTick > 45) {
-        fx.tick();
-        lastTick = now;
+      // Speed drives the slot sound (pitch/flutter), pushed ~10x a second, not every frame.
+      if (dt > 0) m.speed = m.speed * 0.8 + (Math.abs(m.pos - before) / dt) * 0.2;
+      if (now - lastSpeedPush > 100) {
+        reelSound.current?.setSpeed(m.speed);
+        lastSpeedPush = now;
       }
+      // Only in the slow part does each name "clunk" into place — no rapid ticking.
+      const row = Math.floor(m.pos + 0.5);
+      if (row !== lastRow && m.speed < 5) reelSound.current?.clunk();
       lastRow = row;
       draw(m.pos);
       if (!plan || now - plan.t0 < plan.total) raf = requestAnimationFrame(tick);
+      else reelSound.current?.setSpeed(0);
     };
     raf = requestAnimationFrame(tick);
     return () => {
@@ -132,7 +147,6 @@ function Reel({ names, phase, winner, onLanded, tease = false, onLandingStart })
       </li>,
     );
   }
-  const moving = phase === 'spinning' || phase === 'landing';
   return (
     <div className={`machine machine-${phase}${teasing && phase === 'landing' ? ' machine-tease' : ''}`} aria-hidden="true">
       {moving && <Rally />}
@@ -150,10 +164,12 @@ function Reel({ names, phase, winner, onLanded, tease = false, onLandingStart })
 // The rally ball: horizontal glide (ease-in-out, paddle to paddle) and a separate vertical arc
 // (rise decelerates, fall accelerates) on nested elements, so the path is a smooth parabola.
 // Pure CSS transforms on the compositor; one bounce = 1.4 s, in step with the paddles and sound.
+// The only ball sound: a soft paddle impact when the ball actually reaches a paddle (each
+// direction change of the glide = animationiteration), never per frame.
 function Rally() {
   return (
     <span className="rally">
-      <span className="rally-x">
+      <span className="rally-x" onAnimationIteration={e => e.animationName === 'rally-x' && fx.pock()}>
         <span className="rally-y">
           <span className="rally-ball" />
         </span>
@@ -218,34 +234,50 @@ function FairSeal({ show }) {
   );
 }
 
-// While the reel spins: the crowd murmur swells, with a steady rally — or, when only a few
-// names are left, a drumroll instead. All stop the moment the result lands.
+// The slot-machine sound for one spin: starts when the reel starts moving (or when sound is
+// switched on mid-spin), follows the reel speed via the returned ref, stops when it lands.
+function useSlotSound(moving, motion) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!moving) return;
+    const start = () => {
+      if (!ref.current && fx.soundOn()) {
+        ref.current = fx.slotReel();
+        ref.current.setSpeed(motion.current.speed || SPEED);
+      }
+    };
+    start();
+    const off = fx.onSoundChange(status => {
+      if (status === 'on') start();
+      else {
+        ref.current?.stop();
+        ref.current = null;
+      }
+    });
+    return () => {
+      off();
+      ref.current?.stop();
+      ref.current = null;
+    };
+  }, [moving]); // eslint-disable-line react-hooks/exhaustive-deps
+  return ref;
+}
+
+// Under the reel: a soft crowd murmur, and a snare roll when only a few names are left.
+// Both stop the moment the result lands (or immediately when sound is muted).
 function useSpinSounds(show, phase) {
-  const spinning = phase === 'spinning';
-  const active = spinning || phase === 'landing';
+  const active = phase === 'spinning' || phase === 'landing';
   const few = Boolean(show && show.mode === 'spin' && show.candidates.length <= 3);
   const id = show?.actionId;
   useEffect(() => {
     if (!active) return;
-    return fx.crowdSwell(9000);
-  }, [active, id]);
-  useEffect(() => {
-    if (!spinning) return;
-    if (few) return fx.drumroll(15000);
-    fx.pock();
-    const timer = setInterval(fx.pock, 1400);
-    return () => clearInterval(timer);
-  }, [spinning, few, id]);
-}
-
-// During the slow-down the rally speeds up and ends in a smash exactly as the reel stops.
-function useLandingRally() {
-  const stop = useRef(() => {});
-  useEffect(() => () => stop.current(), []);
-  return useCallback(ms => {
-    stop.current();
-    stop.current = fx.rallyToSmash(ms);
-  }, []);
+    const stopCrowd = fx.crowdSwell(9000);
+    const stopRoll = few ? fx.drumroll(12000) : () => {};
+    return () => {
+      stopCrowd();
+      stopRoll();
+    };
+  }, [active, few, id]);
 }
 
 export const COUNTDOWN = 3;
@@ -302,8 +334,9 @@ function useCelebration(show, ref) {
     }
     if (!watched.current.has(show.actionId) || celebrated.current.has(show.actionId)) return;
     celebrated.current.add(show.actionId);
+    // The reel locking on the winner is the climax: jackpot bells (the shuffle deals cards instead).
     if (show.mode === 'shuffle') fx.deal(show.teamNumbers.length);
-    else fx.fanfare();
+    else fx.jackpot();
     fx.cheer();
     // Feel the reveal even with sound off (Android; iPhones don't allow web vibration).
     navigator.vibrate?.(show.mode === 'shuffle' ? [40, 40, 40, 40, 160] : [50, 40, 140]);
@@ -311,16 +344,21 @@ function useCelebration(show, ref) {
   }, [show, ref]);
 }
 
+// Shows the real audio state: 'on' only when the browser has actually unlocked audio.
+// 'locked' = sound was on before a refresh; the next tap (anywhere) resumes it.
 function SoundToggle() {
-  const [on, setOn] = useState(fx.soundOn);
-  const toggle = () => {
-    fx.setSound(!on);
-    setOn(!on);
-    if (!on) fx.pock();
+  const [status, setStatus] = useState(fx.soundStatus);
+  useEffect(() => fx.onSoundChange(setStatus), []);
+  const toggle = async () => {
+    // Runs inside the tap: required for iOS Safari / Android Chrome to allow audio.
+    const next = await fx.setSound(status !== 'on');
+    setStatus(next);
+    if (next === 'on') fx.beep(true); // audible confirmation
   };
+  const label = status === 'on' ? '🔊 Sound on' : status === 'locked' ? '🔈 Tap to resume sound' : '🔇 Tap for sound';
   return (
-    <button type="button" className="btn btn-small sound-toggle" aria-pressed={on} onClick={toggle}>
-      {on ? '🔊 Sound on' : '🔇 Tap for sound'}
+    <button type="button" className="btn btn-small sound-toggle" aria-pressed={status === 'on'} onClick={toggle}>
+      {label}
     </button>
   );
 }
@@ -385,7 +423,6 @@ function StageView({ state, show, finish, children, big = false, announce = null
   // While counting down, the reel waits (even if the result already arrived) and then plays on.
   const phase = show && (count !== null ? 'countdown' : show.phase);
   useSpinSounds(show, phase);
-  const startLandingRally = useLandingRally();
   useCelebration(show, resultRef);
   const cls = big ? ' stage-big' : '';
 
@@ -437,8 +474,7 @@ function StageView({ state, show, finish, children, big = false, announce = null
               names={show.candidates}
               phase={phase === 'countdown' ? 'idle' : phase}
               winner={winner}
-              tease={!isShuffle && isTease(show.actionId)}
-              onLandingStart={isShuffle ? undefined : startLandingRally}
+              tease={isShuffle ? null : teaseOf(show.actionId)}
               onLanded={() => finish(show.actionId)}
             />
             {phase === 'countdown' && <Countdown count={count} names={show.candidates} />}

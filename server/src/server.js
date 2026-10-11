@@ -75,23 +75,40 @@ export async function start({ port = 4000, mongoUri = process.env.MONGODB_URI } 
   const server = createServer(createApp());
   // Socket.IO clients can only send emoji reactions, which are validated and relayed; nothing a
   // client sends can start, choose or change a draw.
-  const io = new Server(server, { cors: { origin: true } });
+  // Heartbeat every 10 s, drop after 10 s more: a phone that vanished (killed browser, lost Wi-Fi)
+  // stops counting as a viewer within ~20 s instead of the default ~45 s.
+  const io = new Server(server, { cors: { origin: true }, pingInterval: 10000, pingTimeout: 10000 });
   attachCrowd(io);
-  // Live viewer count: every open screen, sent at most every 2 s when it changes.
+  // Viewer count rule: the number of distinct *audience browsers* with at least one live
+  // connection. Each browser sends a random id kept in localStorage, so refreshes, reconnects and
+  // extra tabs in the same browser count once; host (/admin) and projector (/screen) connections
+  // are not audience and are excluded. It counts browsers, not people.
+  const audience = new Map(); // viewerId -> number of live sockets
   let lastViewers = -1;
   let viewersTimer = null;
+  const viewerCount = () => audience.size;
   const announceViewers = () => {
     if (viewersTimer) return;
     viewersTimer = setTimeout(() => {
       viewersTimer = null;
-      const n = io.engine.clientsCount;
+      const n = viewerCount();
       if (n !== lastViewers) io.emit('viewers', { count: (lastViewers = n) });
-    }, 2000);
+    }, 1500);
   };
   io.on('connection', async socket => {
-    socket.on('disconnect', announceViewers);
-    announceViewers();
-    socket.emit('viewers', { count: io.engine.clientsCount });
+    const { role, viewer } = socket.handshake.auth ?? {};
+    const viewerId = role === 'audience' && typeof viewer === 'string' && /^[\w-]{8,64}$/.test(viewer) ? viewer : null;
+    if (viewerId) {
+      audience.set(viewerId, (audience.get(viewerId) ?? 0) + 1);
+      socket.on('disconnect', () => {
+        const left = (audience.get(viewerId) ?? 1) - 1;
+        if (left > 0) audience.set(viewerId, left);
+        else audience.delete(viewerId);
+        announceViewers();
+      });
+      announceViewers();
+    }
+    socket.emit('viewers', { count: viewerCount() });
     try {
       socket.emit('tournament:state', await engine.publicState());
     } catch (err) {

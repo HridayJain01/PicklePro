@@ -1,8 +1,8 @@
-// SP Tech branding: a top strip (credit + tagline + WhatsApp enquiry) and a bottom credit with
-// the two contact cards. Contact details live only here.
+// SP Tech branding: a slim top strip and a bottom credit. Both read the same contact list below,
+// so the numbers can never disagree.
 const PEOPLE = [
-  { name: 'Sidh Jain', display: '90671 27688', tel: '+919067127688' },
-  { name: 'Pinkesh Valdria', display: '96536 72196', tel: '+919653672196' },
+  { name: 'Sidh Jain', short: 'Sidh', display: '90671 27688', tel: '+919067127688' },
+  { name: 'Pinkesh Valdria', short: 'Pinkesh', display: '96536 72196', tel: '+919653672196' },
 ];
 // WhatsApp enquiries go to Sidh (wa.me works on phones, WhatsApp Desktop and WhatsApp Web).
 const WHATSAPP_NUMBER = '919067127688';
@@ -39,36 +39,50 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-// Top: credit + tagline + WhatsApp enquiry. Side by side on wide screens, stacked on phones.
+// Compact WhatsApp pill: small, green, easy to tap; opens the enquiry chat with Sidh.
+function WhatsAppPill({ label = 'WhatsApp us' }) {
+  return (
+    <a
+      className="wa-pill"
+      href={WHATSAPP}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Message SP Tech on WhatsApp about website and app development (opens WhatsApp)"
+    >
+      <WhatsAppIcon />
+      <span>{label}</span>
+    </a>
+  );
+}
+
+// Top: one slim line — SP Tech credit, tap-to-call Sidh and Pinkesh, WhatsApp pill. Wraps into
+// two short rows on phones instead of squeezing.
 export function CreditStrip() {
   return (
     <div className="credit-strip">
-      <div className="credit-id">
-        <span className="credit-label">Built &amp; developed by</span>
+      <span className="credit-id">
+        <span className="credit-label">By</span>
         <Wordmark small />
-      </div>
-      <p className="credit-tagline">Turning Ideas into <em>Experiences</em></p>
-      <a
-        className="wa-btn"
-        href={WHATSAPP}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Message SP Tech on WhatsApp about website and app development (opens WhatsApp)"
-      >
-        <WhatsAppIcon />
-        <span>For IT projects, reach us on WhatsApp</span>
-        <span className="wa-arrow" aria-hidden="true">→</span>
-      </a>
+      </span>
+      <span className="credit-contacts">
+        {PEOPLE.map(p => (
+          <a key={p.tel} className="credit-chip" href={`tel:${p.tel}`} aria-label={`Call ${p.name} on ${p.display}`}>
+            <PhoneIcon /> {p.short} <span className="credit-num">{p.display}</span>
+          </a>
+        ))}
+      </span>
+      <WhatsAppPill />
     </div>
   );
 }
 
-// Bottom of the page (after all teams): developer credit + the two contact cards.
+// Bottom of the page (after all teams): credit, tagline, contact cards and the WhatsApp pill.
 export function BrandFooter() {
   return (
     <footer className="brand-footer">
       <p className="brand-footer-kicker">Built &amp; developed by</p>
       <Wordmark />
+      <p className="brand-tagline">Turning Ideas into <em>Experiences</em></p>
       <ul className="brand-people">
         {PEOPLE.map(p => (
           <li key={p.tel}>
@@ -79,6 +93,7 @@ export function BrandFooter() {
           </li>
         ))}
       </ul>
+      <WhatsAppPill label="For IT projects, WhatsApp us" />
     </footer>
   );
 }

@@ -9,7 +9,7 @@ import { useLive } from './useLive.js';
 // Projector / TV view at /screen: a giant reel, the current category's picks, and a QR code
 // so the room can follow on their phones. Read-only, like the audience page.
 export function Screen() {
-  const { state, connected, show, finish, onReaction, announce } = useLive();
+  const { state, connected, show, finish, onReaction, announce } = useLive('screen');
   const board = useLeaderboard(state);
   useWakeLock(Boolean(state && state.status !== 'COMPLETED'));
   const joinUrl = `${location.origin}/`;
