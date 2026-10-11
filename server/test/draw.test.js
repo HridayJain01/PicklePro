@@ -506,14 +506,22 @@ test('audience ticker and viewer count', async t => {
   assert.equal(s.recent[0].name, s.teams[5].players.WOMEN);
   assert.equal(s.recent[0].label, 'Women');
 
+  // Relative to whatever is connected already (sockets from earlier tests may still be closing),
+  // and waiting for the update instead of sleeping a fixed time: robust on slow CI machines.
   const a = await socketTo();
   t.after(() => a.close());
-  const counts = [];
-  a.on('viewers', v => counts.push(v.count));
+  let latest = null;
+  a.on('viewers', v => { latest = v.count; });
+  const settle = async () => {
+    let prev = -1;
+    for (let i = 0; i < 40 && latest !== prev; i++) { prev = latest; await pause(2500); }
+    return latest;
+  };
+  const before = await settle();
   const b = await socketTo();
-  await pause(2300);
+  const withB = await settle();
+  assert.equal(withB, before + 1, `one more viewer: ${before} -> ${withB}`);
   b.close();
-  await pause(2300);
-  assert.ok(counts.includes(2), `saw two viewers: ${counts}`);
-  assert.equal(counts.at(-1), 1, 'drops back after one leaves');
+  const after = await settle();
+  assert.equal(after, before, `back down: ${withB} -> ${after}`);
 });
