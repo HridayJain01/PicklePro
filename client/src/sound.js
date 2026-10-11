@@ -187,94 +187,143 @@ const track = stop => {
 };
 
 // ---------- The slot machine (primary draw sound) ----------
+// Classic casino slot, synthesized (original, no samples): lever pull → fast "bleep-bloop"
+// melody over a soft mechanical reel rattle, both slowing with the reel → reel thunk →
+// ringing jackpot bells with a coin cascade.
 
-// A continuous arcade reel "whirr" whose pitch and flutter follow the reel speed; below a few rows
-// per second it adds a soft mechanical clunk as each name locks past the line. Returns a
-// controller: setSpeed(rowsPerSecond), clunk(), stop().
+// Lever pull: ratchet clicks winding up, then the clunk as the reels release.
+export function leverPull() {
+  for (let i = 0; i < 6; i++) {
+    later(() => noiseShape({ type: 'bandpass', freq: 2200 + i * 120, q: 4, env: [[2, 0.07], [22, 0.0001]] }), i * 28);
+  }
+  later(() => {
+    tone({ freq: 140, to: 70, type: 'square', ms: 140, gain: 0.16 });
+    noiseShape({ type: 'lowpass', freq: 500, env: [[3, 0.18], [120, 0.0001]] });
+  }, 190);
+}
+
+// Casino melody notes (C major arpeggio run up and down, like a slot's spin jingle).
+const SLOT_NOTES = [523, 659, 784, 1047, 1319, 1047, 784, 659];
+
+// Returns a controller: setSpeed(rowsPerSecond), clunk(), stop().
 export function slotReel() {
   const a = ready();
   if (!a) return { setSpeed() {}, clunk() {}, stop() {} };
+  leverPull();
   const t = a.currentTime;
-  const out = a.createGain();
-  out.gain.setValueAtTime(0.0001, t);
-  out.gain.linearRampToValueAtTime(0.16, t + 0.25);
-  // Body: two detuned saws through a resonant band-pass — a bright arcade motor.
-  const bp = a.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.Q.value = 3;
-  bp.frequency.value = 900;
-  const o1 = a.createOscillator();
-  const o2 = a.createOscillator();
-  o1.type = 'sawtooth';
-  o2.type = 'square';
-  o1.frequency.value = 110;
-  o2.frequency.value = 165;
-  o2.detune.value = 8;
-  // Flutter: amplitude wobble at the row rate gives the "brrrr" of a spinning reel, not ticks.
-  const trem = a.createGain();
-  trem.gain.value = 0.6;
-  const lfo = a.createOscillator();
-  const lfoDepth = a.createGain();
-  lfo.type = 'triangle';
-  lfo.frequency.value = 14;
-  lfoDepth.gain.value = 0.4;
-  lfo.connect(lfoDepth).connect(trem.gain);
-  o1.connect(bp);
-  o2.connect(bp);
-  bp.connect(trem).connect(out).connect(master);
-  o1.start(t);
-  o2.start(t);
-  lfo.start(t);
+
+  // Soft mechanical rattle under the melody: band-passed noise, amplitude-wobbled at the reel rate.
+  const rattleSrc = a.createBufferSource();
+  rattleSrc.buffer = noiseBuffer(a);
+  rattleSrc.loop = true;
+  const rattleBp = a.createBiquadFilter();
+  rattleBp.type = 'bandpass';
+  rattleBp.frequency.value = 1800;
+  rattleBp.Q.value = 1.2;
+  const rattle = a.createGain();
+  rattle.gain.value = 0;
+  const wob = a.createOscillator();
+  const wobDepth = a.createGain();
+  wob.type = 'square';
+  wob.frequency.value = 20;
+  wobDepth.gain.value = 0.02;
+  wob.connect(wobDepth).connect(rattle.gain);
+  const rattleOut = a.createGain();
+  rattleOut.gain.setValueAtTime(0.0001, t);
+  rattleOut.gain.linearRampToValueAtTime(1, t + 0.35);
+  rattleSrc.connect(rattleBp).connect(rattle).connect(rattleOut).connect(master);
+  rattleSrc.start(t + 0.2);
+  wob.start(t + 0.2);
+
+  // Melody: a look-ahead scheduler on the audio clock (sample-accurate, no setInterval jitter in
+  // the notes themselves). Tempo follows the reel speed.
+  let speed = 13;
+  let nextAt = t + 0.25;
+  let step = 0;
   let stopped = false;
+  const schedule = () => {
+    if (stopped) return;
+    const notesPerSec = 4 + speed * 1.1; // ~18/s at full spin, a few per second when crawling
+    while (nextAt < a.currentTime + 0.12) {
+      const f = SLOT_NOTES[step % SLOT_NOTES.length];
+      const at = nextAt;
+      const osc = a.createOscillator();
+      const g = a.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(f, at);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(0.045, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + Math.min(0.09, 0.8 / notesPerSec));
+      osc.connect(g).connect(master);
+      osc.start(at);
+      osc.stop(at + 0.1);
+      step += 1;
+      nextAt += 1 / notesPerSec;
+    }
+  };
+  const timer = setInterval(schedule, 30);
+  schedule();
+
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    clearInterval(timer);
     try {
       const n = a.currentTime;
-      out.gain.cancelScheduledValues(n);
-      out.gain.setTargetAtTime(0.0001, n, 0.06);
-      [o1, o2, lfo].forEach(o => o.stop(n + 0.4));
+      rattleOut.gain.cancelScheduledValues(n);
+      rattleOut.gain.setTargetAtTime(0.0001, n, 0.04);
+      rattleSrc.stop(n + 0.3);
+      wob.stop(n + 0.3);
     } catch { /* already stopped */ }
   };
   const untrack = track(stop);
   return {
     setSpeed(rps) {
       if (stopped) return;
+      speed = Math.max(0, rps);
       const n = a.currentTime;
-      const s = Math.max(0, Math.min(1, rps / 14)); // 0 = stopped, 1 = full spin
-      o1.frequency.setTargetAtTime(70 + 70 * s, n, 0.08);
-      o2.frequency.setTargetAtTime(105 + 105 * s, n, 0.08);
-      bp.frequency.setTargetAtTime(500 + 900 * s, n, 0.1);
-      lfo.frequency.setTargetAtTime(Math.max(1.5, rps), n, 0.05);
-      lfoDepth.gain.setTargetAtTime(0.3 + 0.35 * (1 - s), n, 0.1); // more "clack" as it slows
-      out.gain.setTargetAtTime(0.05 + 0.11 * s, n, 0.1);
+      const s = Math.min(1, speed / 13);
+      wob.frequency.setTargetAtTime(Math.max(2, speed * 1.6), n, 0.05);
+      rattle.gain.setTargetAtTime(0.03 * s, n, 0.08);
+      wobDepth.gain.setTargetAtTime(0.025 * s + 0.005, n, 0.08);
+      rattleBp.frequency.setTargetAtTime(1200 + 900 * s, n, 0.1);
     },
-    // A name locking past the line during the slow-down.
+    // A reel position clacking into place during the crawl.
     clunk() {
       if (stopped) return;
-      tone({ freq: 520, to: 260, type: 'triangle', ms: 70, gain: 0.12 });
-      noiseShape({ type: 'highpass', freq: 2500, env: [[2, 0.05], [35, 0.0001]] });
+      tone({ freq: 300, to: 160, type: 'triangle', ms: 60, gain: 0.1 });
+      noiseShape({ type: 'bandpass', freq: 2000, q: 3, env: [[2, 0.06], [30, 0.0001]] });
     },
     stop: untrack,
   };
 }
 
-// The reel locks on the winner: a solid mechanical stop, then a bright jackpot bell run.
+// The reel stops on the winner: heavy thunk, then ringing jackpot bells and a coin cascade.
 export function jackpot() {
-  tone({ freq: 180, to: 90, type: 'square', ms: 120, gain: 0.18 });
-  noiseShape({ type: 'lowpass', freq: 600, env: [[3, 0.25], [110, 0.0001]] });
-  [1046, 1318, 1568, 2093].forEach((f, i) => {
-    tone({ freq: f, type: 'triangle', ms: 420, gain: 0.11, delay: 130 + i * 90 });
-    tone({ freq: f * 2, type: 'sine', ms: 300, gain: 0.03, delay: 130 + i * 90 });
-  });
-  // Coin sparkle.
-  for (let i = 0; i < 8; i++) tone({ freq: 2400 + ((i * 337) % 900), type: 'sine', ms: 90, gain: 0.025, delay: 520 + i * 55 });
+  tone({ freq: 120, to: 60, type: 'square', ms: 160, gain: 0.2 });
+  noiseShape({ type: 'lowpass', freq: 450, env: [[3, 0.22], [140, 0.0001]] });
+  // Ringing bells: two bright pitches alternating fast, like a slot's win bell.
+  for (let i = 0; i < 18; i++) {
+    const f = i % 2 ? 2093 : 1760;
+    later(() => {
+      tone({ freq: f, type: 'triangle', ms: 160, gain: 0.07 });
+      tone({ freq: f * 2.76, type: 'sine', ms: 110, gain: 0.02 }); // metallic overtone
+    }, 180 + i * 75);
+  }
+  // Coins dropping into the tray: short metallic pings at slightly random times and pitches.
+  for (let i = 0; i < 22; i++) {
+    const f = 3000 + ((i * 523) % 1700);
+    later(() => {
+      tone({ freq: f, to: f * 0.92, type: 'sine', ms: 70, gain: 0.03 });
+      tone({ freq: f * 1.5, type: 'sine', ms: 40, gain: 0.012 });
+    }, 300 + i * 60 + ((i * 37) % 40));
+  }
 }
 
-// Near-miss suspense: a quick rising "ohh" sting (reel passing / stalling by a name).
+// Near-miss: the classic "so close" two-note slide before the reel settles.
 export function nearMiss() {
-  tone({ freq: 330, to: 440, type: 'triangle', ms: 380, gain: 0.08 });
-  tone({ freq: 415, to: 554, type: 'triangle', ms: 380, gain: 0.05 });
+  tone({ freq: 784, to: 740, type: 'square', ms: 180, gain: 0.04 });
+  tone({ freq: 740, to: 698, type: 'square', ms: 260, gain: 0.04, delay: 190 });
 }
 
 // ---------- Secondary effects ----------
