@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import { Board } from './Board.jsx';
 import { NowBar, Ticker } from './NowBar.jsx';
 import { FollowCard, TeamSearch, useFollow, useTeamSearch, useWakeLock } from './Follow.jsx';
-import { Stage } from './Stage.jsx';
+import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
 
 export function ConnectionBanner({ connected }) {
@@ -88,6 +88,7 @@ export function Live() {
       </main>
       <BrandFooter />
       <FloatingReactions onReaction={onReaction} />
+      <ResumeSoundPrompt />
       {live && <ReactionBar send={send} />}
     </div>
   );

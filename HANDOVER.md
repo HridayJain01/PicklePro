@@ -8,6 +8,9 @@ Live team-draw app for the **ICC Pickleball** 28-team doubles tournament. The ho
 
 ## 1. Links
 
+**Kids draw (separate event, same engine):** audience `/kids`, host `/kids/admin`, projector `/kids/screen` (same domains). 4 teams; each team = 1 Icon Boy + 1 Boy + 2 Girls. Rounds: Icon Boy (shuffled onto Teams 1–4 in one go, they are the team captains) → Boy → Girl 1 → Girl 2. Girl 1 and Girl 2 both draw from one Girls list of 8. Its own tournaments, lists, predictions, leaderboard, viewer count and Socket.IO room; API under `/api/kids/*`. The main event is unaffected and both can run at the same time.
+
+
 | Who | Link | Purpose |
 |---|---|---|
 | Audience (phones) | https://pickle-pro-peach.vercel.app | Watch live. Read-only. |
@@ -226,6 +229,14 @@ Host phone remote, read winner names aloud (commentator voice), configurable tea
 ## Change log
 
 Newest first. Add an entry for every change.
+
+### 2026-10-12 — Kids event, mechanical slot sound, Know your team, leaderboard box, resume sound
+- **Kids event** (`EVENTS` in `server/src/models.js`): tournaments carry `event` ('main' default, so existing data is main); every engine function takes the event; routes mounted twice (`/api/kids`, `/api`); sockets join `event:<name>` rooms (state, spins, reactions, viewer counts per event). Kids format fixed: 4 teams, rounds ICON (shuffle) / BOY / GIRL1 / GIRL2; GIRL1+GIRL2 share the GIRL list (`poolOf`), which must hold 8 before Girl 1 and is locked once Girl 1 starts; Girl 2 uses what is left. Generalised: shuffle rounds (`SHUFFLE` = A, ICON), per-round `needed`, `ready`, `short` codes (IB, B, G1, G2). Excel import headers "Icon Boy", "Boy(s)", "Girl(s)"; export uses labels. Client: `client/src/event.js` (EVENT/BASE/API, per-event storage keys); host page reads categories/lists from the server; fixed-format card for kids. New test: full kids draw + isolation from the main event (23/23).
+- **Sound**: arcade melody and beeping lever removed → pure mechanical slot (lever spring + gear catch, motor hum, reel mechanism whirr that slows into clacks, mechanical near-miss shudder, thunk + bell + coins).
+- **Resume sound**: on returning to the app, audio resume is attempted; if the browser needs a tap, a floating "🔈 Tap to resume sound" appears (audience, projector, host).
+- **Know your team** (renamed): team shown as a chain of seats (filled = player initials, empty = 🔔 "Arriving soon", current = 🎰 "Being drawn now"), plus a "Team alert is on" message: everyone following that team gets a buzz + pop-up when a new teammate is drawn. Board tag "⭐ Know your team".
+- **Leaderboard** in Predict: always-visible box, top 3 shown, "You: #N", "See full leaderboard (N players)"; empty state explains scoring.
+- **Header**: "👀 N watching" now sits under LIVE (no longer collides with the title).
 
 ### 2026-10-12 — Feedback fixes (branch `feedback-fixes`, preview first)
 - **Sound** rebuilt (`client/src/sound.js`; `fx.js` now = confetti + re-export): one master gain + compressor; mute cancels every scheduled timer and long-running sound instantly; unlock inside the tap (silent buffer + `resume()`), `navigator.audioSession.type = 'playback'` so the iPhone silent switch doesn't mute it; honest toggle states (`on` / `off` / `locked` = "Tap to resume sound" after a refresh, resumed by the next tap anywhere); listens to context state changes. Diagnostics: `activeSounds()`.

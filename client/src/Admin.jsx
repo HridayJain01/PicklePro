@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
+import { API, BASE, EVENT } from './event.js';
 import { FloatingReactions } from './Audience.jsx';
 import { downloadGallery } from './gallery.js';
 import { downloadReport } from './report.js';
 import { Board } from './Board.jsx';
 import { ConnectionBanner, Header, Steps } from './Live.jsx';
-import { Stage } from './Stage.jsx';
+import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
 
-const LABELS = { A: 'A', WOMEN: 'Women', B: 'B', C: 'C', D: 'D' };
-const ALL = Object.keys(LABELS);
+// Labels come from the server per event (main: A–D, kids: Icon Boy / Boy / Girls).
+const labelOf = (data, key) => data.pools.find(p => p.key === key)?.label ?? data.available.find(c => c.key === key)?.label ?? key;
 const toNames = text => text.split('\n').map(s => s.trim()).filter(Boolean);
 
 export function Admin() {
@@ -106,8 +107,9 @@ function Dashboard({ onLogout }) {
   return (
     <>
       <Header state={state} connected={connected}>
-        <a className="btn btn-small" href="/" target="_blank" rel="noreferrer">Audience view</a>
-        <a className="btn btn-small" href="/screen" target="_blank" rel="noreferrer">Big screen</a>
+        <a className="btn btn-small" href={`${BASE}/`} target="_blank" rel="noreferrer">Audience view</a>
+        <a className="btn btn-small" href={`${BASE}/screen`} target="_blank" rel="noreferrer">Big screen</a>
+        <a className="btn btn-small" href={EVENT === 'kids' ? '/admin' : '/kids/admin'}>{EVENT === 'kids' ? 'Main draw host' : 'Kids draw host'}</a>
         <button className="btn btn-small" onClick={logout}>Log out</button>
       </Header>
       <ConnectionBanner connected={connected} />
@@ -136,6 +138,7 @@ function Dashboard({ onLogout }) {
             <Board state={state} show={show} />
           </main>
           <FloatingReactions onReaction={onReaction} />
+          <ResumeSoundPrompt />
           <section className="admin-extras">
             <UpcomingLists {...ctx} />
             <History history={data.history} />
@@ -155,20 +158,21 @@ function Controls({ state, data, run, busy, show, connected }) {
         <button className="btn btn-spin" disabled={busy} onClick={() => run(() => downloadReport(state))}>Download PDF report</button>
         <div className="controls-row">
           <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadGallery(state))}>Teams gallery image</button>
-          <a className="btn btn-small" href="/api/export.xlsx">Export Excel</a>
+          <a className="btn btn-small" href={`${API}/export.xlsx`}>Export Excel</a>
         </div>
       </div>
     );
   }
   const cat = state.categories.find(c => c.key === state.current);
   const animating = Boolean(show && show.phase !== 'done') || Boolean(state.pending);
-  const notReady = cat.players !== state.teamCount;
+  const needed = cat.needed ?? state.teamCount;
+  const notReady = cat.ready === undefined ? cat.players !== needed : !cat.ready; // server's own rule
   const filled = !state.currentTeam && !state.pending;
   const canUndo = state.last && state.last.category === state.current && !animating;
   const reason = !connected
     ? 'Reconnecting. Draws are paused until the connection is back.'
     : notReady
-      ? `${cat.label} has ${cat.players} of ${state.teamCount} players. Fix the list below before drawing.`
+      ? `${cat.label} needs ${needed} players in its list (has ${cat.players}). Fix the list below before drawing.`
       : filled
         ? `All ${state.teamCount} teams have their ${cat.label} player. Finalize to lock them in.`
         : null;
@@ -198,7 +202,7 @@ function Controls({ state, data, run, busy, show, connected }) {
       {reason && <p className="controls-note">{reason}</p>}
       <div className="controls-row">
         <button className="btn btn-small" disabled={busy || !canUndo || !connected} onClick={undo}>Undo last draw</button>
-        <a className="btn btn-small" href="/api/export.xlsx">Export Excel</a>
+        <a className="btn btn-small" href={`${API}/export.xlsx`}>Export Excel</a>
         <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadReport(state))}>PDF report</button>
       </div>
       {data.history.length === 0 && <p className="controls-note">Spin results are saved the moment they're drawn.</p>}
@@ -224,6 +228,8 @@ function PredictionSwitch({ state, run, busy }) {
 
 function Setup({ state, data, run, busy, refresh }) {
   const enabled = state.categories.map(c => c.key);
+  const ALL = data.available.map(c => c.key);
+  const LABELS = Object.fromEntries(data.available.map(c => [c.key, c.label]));
   const [order, setOrder] = useState(() => [...enabled, ...ALL.filter(k => !enabled.includes(k))]);
   const [on, setOn] = useState(() => new Set(enabled));
   const [name, setName] = useState(state.name);
@@ -244,17 +250,17 @@ function Setup({ state, data, run, busy, refresh }) {
     e.preventDefault();
     run(() => api('/tournament', {
       method: 'PATCH',
-      body: { name, categories: order.filter(k => on.has(k)), spinMs: Math.round(Number(seconds) * 1000) },
+      body: { name, spinMs: Math.round(Number(seconds) * 1000), ...(data.fixed ? {} : { categories: order.filter(k => on.has(k)) }) },
     }));
   };
   const settingsDirty = name !== state.name
     || Number(seconds) * 1000 !== state.spinMs
-    || order.filter(k => on.has(k)).join() !== enabled.join();
+    || (!data.fixed && order.filter(k => on.has(k)).join() !== enabled.join());
   const first = state.categories[0];
   const startBlock = settingsDirty || dirtyLists
     ? 'Save your changes first.'
-    : first.players !== state.teamCount
-      ? `${first.label} needs exactly ${state.teamCount} players (has ${first.players}).`
+    : first.players !== (first.needed ?? state.teamCount)
+      ? `${first.label} needs exactly ${first.needed ?? state.teamCount} players (has ${first.players}).`
       : null;
   const start = () => {
     if (!confirm(`Start the draw? Categories and their order are locked from here, and the audience sees the ${first.label} draw next.`)) return;
@@ -273,6 +279,15 @@ function Setup({ state, data, run, busy, refresh }) {
           Spin length (seconds)
           <input type="number" min="1" max="30" step="0.5" value={seconds} onChange={e => setSeconds(e.target.value)} required />
         </label>
+        {data.fixed ? (
+          <div className="fixed-format">
+            <p className="legend">Draw format ({state.teamCount} teams)</p>
+            <ol>
+              {state.categories.map(c => <li key={c.key}>{c.label}{c.shuffle && <span className="hint"> · shuffled in one go</span>}</li>)}
+            </ol>
+            <p className="hint">Each team: 1 Icon Boy + 1 Boy + 2 Girls. Girl 1 and Girl 2 are both drawn from the one Girls list.</p>
+          </div>
+        ) : (
         <fieldset>
           <legend>Categories, in draw order</legend>
           <ol className="cat-order">
@@ -281,7 +296,7 @@ function Setup({ state, data, run, busy, refresh }) {
                 <label className="check">
                   <input type="checkbox" checked={on.has(key)} onChange={() => toggle(key)} />
                   {LABELS[key]}
-                  {key === 'A' && <span className="hint">shuffled in one go</span>}
+                  {data.available.find(c => c.key === key)?.shuffle && <span className="hint">shuffled in one go</span>}
                 </label>
                 <button type="button" className="icon-btn" aria-label={`Move ${LABELS[key]} up`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
                 <button type="button" className="icon-btn" aria-label={`Move ${LABELS[key]} down`} disabled={i === order.length - 1} onClick={() => move(i, 1)}>↓</button>
@@ -289,19 +304,23 @@ function Setup({ state, data, run, busy, refresh }) {
             ))}
           </ol>
         </fieldset>
+        )}
         <button className="btn btn-primary" disabled={busy || !settingsDirty || on.size === 0}>Save settings</button>
       </form>
 
-      <PlayerLists categories={enabled} state={state} data={data} run={run} busy={busy} refresh={refresh} onDirty={setDirtyLists} />
+      <PlayerLists categories={[...new Set(data.pools.filter(p => p.needed).map(p => p.key))]} state={state} data={data} run={run} busy={busy} refresh={refresh} onDirty={setDirtyLists} />
 
       <div className="card start-card">
         <h2>Ready?</h2>
         <ul className="readiness">
-          {state.categories.map(c => (
-            <li key={c.key} className={c.players === state.teamCount ? 'ok' : 'bad'}>
-              {c.label}: {c.players}/{state.teamCount} players
-            </li>
-          ))}
+          {data.pools.filter(p => p.needed).map(p => {
+            const n = data.lists[p.key]?.length ?? 0;
+            return (
+              <li key={p.key} className={n === p.needed ? 'ok' : 'bad'}>
+                {p.label}: {n}/{p.needed} players
+              </li>
+            );
+          })}
         </ul>
         {startBlock && <p className="controls-note">{startBlock}</p>}
         <button className="btn btn-primary btn-big" disabled={busy || Boolean(startBlock)} onClick={start}>Start draw</button>
@@ -341,9 +360,9 @@ function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
     run(async () => {
       const { lists } = await api('/players/import', { method: 'POST', body: { filename: file.name, data: await readBase64(file) } });
       const usable = Object.keys(lists).filter(k => categories.includes(k));
-      if (!usable.length) throw new Error(`None of the file's columns match these categories: ${categories.map(k => LABELS[k]).join(', ')}.`);
+      if (!usable.length) throw new Error(`None of the file's columns match these lists: ${categories.map(k => labelOf(data, k)).join(', ')}.`);
       setDrafts(d => ({ ...d, ...Object.fromEntries(usable.map(k => [k, lists[k].join('\n')])) }));
-      setNote(`Imported ${usable.map(k => `${LABELS[k]} (${lists[k].length})`).join(', ')}. Check the lists, then save.`);
+      setNote(`Imported ${usable.map(k => `${labelOf(data, k)} (${lists[k].length})`).join(', ')}. Check the lists, then save.`);
     });
   };
 
@@ -356,16 +375,17 @@ function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
           <input type="file" accept=".xlsx,.csv" onChange={importFile} disabled={busy} />
         </label>
       </div>
-      <p className="hint">One name per line. In a spreadsheet, put the category names (A, Women, B, C, D) in the first row and names below.</p>
+      <p className="hint">One name per line. In a spreadsheet, put the list names ({data.pools.map(p => p.label).join(', ')}) in the first row and names below.</p>
       <div className="lists">
         {categories.map(key => {
           const count = toNames(text(key)).length;
           const locked = !data.editable[key];
+          const need = data.pools.find(p => p.key === key)?.needed ?? state.teamCount;
           return (
             <label key={key} className="list">
               <span className="list-head">
-                {LABELS[key]}
-                <span className={count === state.teamCount ? 'count ok' : 'count bad'}>{count}/{state.teamCount}</span>
+                {labelOf(data, key)}
+                <span className={count === need ? 'count ok' : 'count bad'}>{count}/{need}</span>
               </span>
               <textarea
                 value={text(key)}
@@ -389,7 +409,7 @@ function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
 }
 
 function UpcomingLists(ctx) {
-  const editable = ctx.state.categories.map(c => c.key).filter(k => ctx.data.editable[k]);
+  const editable = ctx.data.pools.filter(p => p.needed && ctx.data.editable[p.key]).map(p => p.key);
   if (!editable.length || ctx.state.status !== 'LIVE') return null;
   return (
     <details className="panel">
@@ -452,7 +472,7 @@ function Archive({ state }) {
                   <td>{new Date(t.createdAt).toLocaleString()}</td>
                   <td>{STATUS[t.status]}</td>
                   <td>{t.draws}/{t.teamCount * t.categories.length}</td>
-                  <td><a className="btn btn-small" href={`/api/export.xlsx?tournament=${t.id}`}>Export Excel</a></td>
+                  <td><a className="btn btn-small" href={`${API}/export.xlsx?tournament=${t.id}`}>Export Excel</a></td>
                 </tr>
               ))}
             </tbody>

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { storeKey } from './event.js';
 import * as fx from './fx.js';
 
-const FOLLOW_KEY = 'team-draw:follow';
+const FOLLOW_KEY = storeKey('follow');
 const read = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
 const norm = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
 const buzz = pattern => navigator.vibrate?.(pattern);
+const initials = name => name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
 // Teams as this phone may show them: a pick still landing on the reel stays hidden (no spoilers).
 export function visibleTeams(state, show) {
@@ -66,7 +68,7 @@ export function FollowCard({ state, follow }) {
       fx.confetti(document.querySelector('.follow-card'));
     } else if (now && before && now.number === before.number && now.names.length > before.names.length) {
       const joined = now.names.find(n => !before.names.includes(n));
-      msg = { big: false, text: `${joined} joined your team!` };
+      msg = { big: false, text: `New teammate: ${joined} joined Team ${now.number}!` };
       buzz([60, 40, 120]);
     }
     if (!msg) return;
@@ -76,6 +78,7 @@ export function FollowCard({ state, follow }) {
   }, [team, name]);
 
   if (!state || state.status === 'DRAFT' && !name) return null;
+  const filledCount = team ? state.categories.filter(c => team.players[c.key]).length : 0;
   const save = e => {
     e.preventDefault();
     if (!draft.trim()) return;
@@ -90,8 +93,8 @@ export function FollowCard({ state, follow }) {
       <header className="panel-head">
         <span className="panel-icon">⭐</span>
         <div>
-          <h3>{team ? `Your team · Team ${team.number}` : 'Follow your team'}</h3>
-          <p>{name && !editing ? (team ? 'We’ll buzz you every time a teammate joins.' : `${name} isn’t drawn yet — we’ll buzz you the moment you are.`) : 'Playing today? Pick your name and we’ll track your team for you.'}</p>
+          <h3>{team ? `Know your team · Team ${team.number}` : 'Know your team'}</h3>
+          <p>{name && !editing ? (team ? `${filledCount} of ${state.categories.length} players are in. The rest arrive live.` : `${name} isn’t drawn yet.`) : 'Playing today? Pick your name and meet your teammates the moment they are drawn.'}</p>
         </div>
       </header>
 
@@ -107,19 +110,33 @@ export function FollowCard({ state, follow }) {
       ) : (
         <>
           {team && (
-            <ul className="follow-team">
+            // The team as a chain of seats: filled seats show the player, empty seats wait with a
+            // bell — the next teammate "lands" there live, with a buzz and pop-up for everyone
+            // following this team.
+            <ol className="team-chain">
               {state.categories.map(c => {
                 const p = team.players[c.key];
                 const me = p && norm(p) === norm(name);
+                const now = !p && c.key === state.current;
                 return (
-                  <li key={c.key} className={me ? 'me' : undefined}>
-                    <span>{c.label}</span>
-                    <b>{p ?? (c.key === state.current ? 'Drawing now…' : 'To be drawn')}</b>
+                  <li key={c.key} className={[p ? 'filled' : 'empty', me && 'me', now && 'now'].filter(Boolean).join(' ')}>
+                    <span className="seat-avatar" aria-hidden="true">{p ? initials(p) : now ? '🎰' : '🔔'}</span>
+                    <span className="seat-role">{c.label}</span>
+                    <b className="seat-name">{p ?? (now ? 'Being drawn now…' : 'Arriving soon')}</b>
+                    {me && <span className="seat-you">You</span>}
                   </li>
                 );
               })}
-            </ul>
+            </ol>
           )}
+          <p className="team-alert" role="note">
+            <span className="team-alert-bell" aria-hidden="true">🔔</span>
+            <span>
+              {team
+                ? <><b>Team alert is on.</b> Everyone following Team {team.number} gets a buzz and a pop-up the moment a new teammate is drawn{filledCount < state.categories.length ? '' : ' (your team is complete!)'}.</>
+                : <><b>You’re on alert.</b> The moment {name} is drawn you’ll get a buzz and meet your team here — and your teammates will be notified about you too.</>}
+            </span>
+          </p>
           <div className="follow-actions">
             {team && <button type="button" className="btn btn-small" onClick={() => document.getElementById(`team-card-${team.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Show on board</button>}
             <button type="button" className="link-btn" onClick={() => { setDraft(name); setEditing(true); }}>Change ({name})</button>

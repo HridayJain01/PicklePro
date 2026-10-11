@@ -3,7 +3,7 @@
 // against revealed picks only.
 import * as engine from './draw.js';
 import { HttpError } from './draw.js';
-import { Guess, LABELS } from './models.js';
+import { Guess, LABELS, eventOf, poolOf } from './models.js';
 
 export const REACTIONS = ['🔥', '😂', '👏', '🎉', '😱', '❤️'];
 const REACTIONS_PER_SEC = 4;
@@ -28,9 +28,10 @@ function limiter(max, ms) {
 export function attachCrowd(io) {
   io.on('connection', socket => {
     const canReact = limiter(REACTIONS_PER_SEC, 1000);
+    const room = engine.roomOf(eventOf(socket.handshake.auth?.event));
     socket.on('reaction', emoji => {
       if (typeof emoji !== 'string' || !REACTIONS.includes(emoji) || !canReact(socket.id)) return;
-      io.emit('reaction', { emoji });
+      io.to(room).emit('reaction', { emoji }); // only screens of the same event
     });
   });
 }
@@ -43,22 +44,22 @@ const guessOverall = limiter(5000, 60 * 1000);
 
 function nextGuessable(s) {
   const { t, current, revealed, players } = s;
-  if (t.status !== 'LIVE' || !current || current === 'A') return null;
+  if (t.status !== 'LIVE' || !current || engine.isShuffle(current)) return null;
   const filled = revealed.filter(e => e.category === current).length;
   if (filled >= t.teamCount) return null;
   const taken = new Set(revealed.map(e => String(e.playerId)));
-  const pool = players.filter(p => p.category === current && !taken.has(String(p._id))).map(p => p.name);
+  const pool = players.filter(p => p.category === poolOf(current) && !taken.has(String(p._id))).map(p => p.name);
   return { category: current, team: filled + 1, pool };
 }
 
-export async function submitGuess(body = {}) {
+export async function submitGuess(body = {}, ev = 'main') {
   const { voterId, category, team } = body;
   if (typeof voterId !== 'string' || !/^[\w-]{8,64}$/.test(voterId)) fail(400, 'Bad voter id');
   if (!guessOverall('all') || !guessPerViewer(voterId)) fail(429, 'Slow down a little');
   const nickname = engine.cleanName(body.nickname);
   if (!nickname || nickname.length > 24) fail(400, 'Nickname must be 1–24 characters');
   const name = engine.cleanName(body.name);
-  const s = await engine.snapshot();
+  const s = await engine.snapshot(undefined, ev);
   // The host can switch predictions off; enforced here, not just hidden in the page.
   if (s.t.predictions === false) fail(409, 'Predictions are closed by the host');
   const open = nextGuessable(s);
@@ -74,8 +75,8 @@ export async function submitGuess(body = {}) {
   return { ok: true, category, team, name };
 }
 
-export async function leaderboard({ voter } = {}) {
-  const s = await engine.snapshot();
+export async function leaderboard({ voter } = {}, ev = 'main') {
+  const s = await engine.snapshot(undefined, ev);
   const guesses = await Guess.find({ tournamentId: s.t._id }).sort({ updatedAt: 1 }).lean();
   const result = new Map(s.revealed.map(e => [`${e.category}:${e.teamNumber}`, e.playerName]));
   const scores = new Map();
@@ -90,7 +91,7 @@ export async function leaderboard({ voter } = {}) {
   }
   const ranked = [...scores.values()].sort((a, b) => b.correct - a.correct || a.total - b.total);
   const top = ranked.slice(0, 10).map(({ voterId, ...r }) => r);
-  const lastSpin = s.revealed.filter(e => e.category !== 'A').at(-1);
+  const lastSpin = s.revealed.filter(e => !engine.isShuffle(e.category)).at(-1);
   let last = null;
   if (lastSpin) {
     const onIt = guesses.filter(g => g.category === lastSpin.category && g.teamNumber === lastSpin.teamNumber);

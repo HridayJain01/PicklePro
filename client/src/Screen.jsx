@@ -3,8 +3,9 @@ import QRCode from 'qrcode';
 import { FloatingReactions, LeaderList, useLeaderboard } from './Audience.jsx';
 import { useWakeLock } from './Follow.jsx';
 import { ConnectionBanner } from './Live.jsx';
-import { Stage } from './Stage.jsx';
+import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
+import { BASE } from './event.js';
 
 // Projector / TV view at /screen: a giant reel, the current category's picks, and a QR code
 // so the room can follow on their phones. Read-only, like the audience page.
@@ -12,7 +13,7 @@ export function Screen() {
   const { state, connected, show, finish, onReaction, announce } = useLive('screen');
   const board = useLeaderboard(state);
   useWakeLock(Boolean(state && state.status !== 'COMPLETED'));
-  const joinUrl = `${location.origin}/`;
+  const joinUrl = `${location.origin}${BASE}/`;
   const [qr, setQr] = useState('');
   useEffect(() => {
     QRCode.toDataURL(joinUrl, { margin: 1, width: 360, color: { dark: '#0b1f52', light: '#ffffff' } }).then(setQr, () => {});
@@ -66,7 +67,7 @@ export function Screen() {
           {label && state.status !== 'DRAFT' && (
             <section className="screen-picks">
               <h2>{label} <span>{filled}/{state.teamCount}</span></h2>
-              <ol>
+              <ol style={{ gridTemplateRows: `repeat(${Math.ceil(state.teamCount / 2)}, minmax(0, 1fr))` }}>
                 {picks.map(p => (
                   <li key={p.team} className={[p.name ? 'has' : '', show?.phase === 'done' && show.teamNumbers.includes(p.team) ? 'fresh' : ''].join(' ')}>
                     <span className="pick-team">{p.team}</span>
@@ -93,6 +94,7 @@ export function Screen() {
         </aside>
       </main>
       <FloatingReactions onReaction={onReaction} big />
+      <ResumeSoundPrompt />
     </div>
   );
 }

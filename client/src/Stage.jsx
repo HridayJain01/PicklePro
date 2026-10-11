@@ -363,6 +363,19 @@ function SoundToggle() {
   );
 }
 
+// Floating prompt whenever sound is wanted but paused by the browser (after switching apps,
+// a call, or a refresh): one tap resumes it. Rendered once per page, above everything.
+export function ResumeSoundPrompt() {
+  const [status, setStatus] = useState(fx.soundStatus);
+  useEffect(() => fx.onSoundChange(setStatus), []);
+  if (status !== 'locked') return null;
+  return (
+    <button type="button" className="resume-sound" onClick={() => fx.setSound(true).then(next => next === 'on' && fx.beep(true))}>
+      🔈 Tap to resume sound
+    </button>
+  );
+}
+
 function Fullscreen() {
   if (!document.fullscreenEnabled) return null;
   const toggle = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
@@ -394,8 +407,9 @@ function Deal({ assignments }) {
 
 // The team's A player leads it: shown as captain while the rest of the team is drawn.
 function Captain({ state, category, team }) {
-  const hasA = state.categories.some(c => c.key === 'A');
-  const name = hasA && category !== 'A' && team ? state.teams[team - 1]?.players.A : null;
+  // The first shuffle round (A in the main draw, Icon Boy for kids) holds the team's captain.
+  const lead = state.categories.find(c => c.shuffle ?? c.key === 'A');
+  const name = lead && category !== lead.key && team ? state.teams[team - 1]?.players[lead.key] : null;
   if (!name) return null;
   return <p className="captain">🏓 Captain <b>{name}</b></p>;
 }

@@ -539,3 +539,97 @@ test('audience ticker and viewer count', async t => {
   [p1tab2, p3again, p2back].forEach(s => s.close());
   assert.equal(await settle(), base);
 });
+
+test('kids event: 4 teams, Icon Boy shuffle, Boy, two Girl rounds from one list — separate from the main draw', async t => {
+  const kidNames = (p, n) => Array.from({ length: n }, (_, i) => `${p} Kid ${i + 1}`);
+  const mainBefore = await state();
+  // Separate tournament, fixed format.
+  await ok('/kids/tournaments', { method: 'POST', body: { name: 'Kids Cup' } });
+  assert.equal((await api('/kids/tournament', { method: 'PATCH', body: { categories: ['BOY'] } })).status, 409, 'kids format is fixed');
+  await ok('/kids/tournament', { method: 'PATCH', body: { spinMs: 0 } });
+  let k = await ok('/kids/state', { auth: false });
+  assert.equal(k.event, 'kids');
+  assert.equal(k.teamCount, 4);
+  assert.deepEqual(k.categories.map(c => c.key), ['ICON', 'BOY', 'GIRL1', 'GIRL2']);
+  assert.deepEqual(k.categories.map(c => c.needed), [4, 4, 8, 8], 'the Girls list feeds both girl rounds');
+  assert.notEqual(k.id, (await state()).id, 'kids and main tournaments are different');
+
+  // Lists: main categories are not allowed here; girls list must hold 8.
+  assert.equal((await api('/kids/players', { method: 'PUT', body: { lists: { A: ['x'] } } })).status, 400);
+  await ok('/kids/players', { method: 'PUT', body: { lists: { ICON: kidNames('Icon', 4), BOY: kidNames('Boy', 4), GIRL: kidNames('Girl', 7) } } });
+  const admin = await ok('/kids/admin');
+  assert.deepEqual(admin.pools.map(p => [p.key, p.needed]), [['ICON', 4], ['BOY', 4], ['GIRL', 8]]);
+  assert.equal(admin.fixed, true);
+
+  // Kids screens only hear the kids draw.
+  const kidsScreen = await socketTo({ event: 'kids' });
+  const mainScreen = await socketTo({ event: 'main' });
+  t.after(() => { kidsScreen.close(); mainScreen.close(); });
+  const mainHeard = [];
+  mainScreen.on('draw:spinning', e => mainHeard.push(e));
+  mainScreen.on('reaction', e => mainHeard.push(e));
+  kidsScreen.emit('reaction', '🎉');
+
+  await ok('/kids/start', { method: 'POST' });
+  const kspin = async () => {
+    const s = await ok('/kids/state', { auth: false });
+    return api('/kids/draw', { method: 'POST', body: { category: s.current, team: s.currentTeam } });
+  };
+  // Icon Boy: shuffled onto all 4 teams in one go.
+  assert.equal((await kspin()).status, 200);
+  await pause(50);
+  k = await ok('/kids/state', { auth: false });
+  assert.equal(k.teams.filter(x => x.players.ICON).length, 4);
+  await ok('/kids/finalize', { method: 'POST', body: { category: 'ICON' } });
+  // Boy: one spin per team.
+  for (let i = 0; i < 4; i++) { assert.equal((await kspin()).status, 200); await pause(20); }
+  await ok('/kids/finalize', { method: 'POST', body: { category: 'BOY' } });
+  // Girl 1 refuses to start with 7 girls; fixing the list (still editable) lets it run.
+  const short = await kspin();
+  assert.equal(short.status, 400);
+  assert.match(short.body.error, /Girls needs exactly 8 players \(has 7\)/);
+  await ok('/kids/players', { method: 'PUT', body: { lists: { GIRL: kidNames('Girl', 8) } } });
+  for (let i = 0; i < 4; i++) { assert.equal((await kspin()).status, 200); await pause(20); }
+  k = await ok('/kids/state', { auth: false });
+  assert.equal(k.remaining.length, 4, 'Girl 1 placed 4 of the 8 girls');
+  await ok('/kids/finalize', { method: 'POST', body: { category: 'GIRL1' } });
+  k = await ok('/kids/state', { auth: false });
+  assert.equal(k.current, 'GIRL2');
+  assert.equal(k.remaining.length, 4, 'Girl 2 draws from the 4 girls Girl 1 left');
+  assert.equal((await api('/kids/players', { method: 'PUT', body: { lists: { GIRL: kidNames('Girl', 8) } } })).status, 409, 'girls list locked once drawing started');
+  // Predictions work in the kids event too (Girl 2, Team 1).
+  await ok('/kids/guess', { method: 'POST', auth: false, body: { voterId: 'voter-kid-0001', nickname: 'Mia', category: 'GIRL2', team: 1, name: k.remaining[0] } });
+  for (let i = 0; i < 4; i++) { assert.equal((await kspin()).status, 200); await pause(20); }
+  await ok('/kids/finalize', { method: 'POST', body: { category: 'GIRL2' } });
+
+  k = await ok('/kids/state', { auth: false });
+  assert.equal(k.status, 'COMPLETED');
+  for (const team of k.teams) {
+    const four = ['ICON', 'BOY', 'GIRL1', 'GIRL2'].map(c => team.players[c]);
+    assert.ok(four.every(Boolean), `team ${team.number} is complete`);
+    assert.equal(new Set(four).size, 4);
+    assert.match(team.players.ICON, /^Icon/);
+    assert.match(team.players.BOY, /^Boy/);
+    assert.match(team.players.GIRL1, /^Girl/);
+    assert.match(team.players.GIRL2, /^Girl/);
+  }
+  const girls = k.teams.flatMap(x => [x.players.GIRL1, x.players.GIRL2]);
+  assert.deepEqual(girls.sort(), kidNames('Girl', 8).sort(), 'all 8 girls placed exactly once');
+  assert.equal((await ok('/kids/leaderboard?voter=voter-kid-0001', { auth: false })).me.total, 1);
+
+  // Excel export for kids.
+  const xlsx = await api('/kids/export.xlsx');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(xlsx.body);
+  assert.deepEqual(wb.getWorksheet('Final Teams').getRow(1).values.slice(1), ['Team', 'Icon Boy', 'Boy', 'Girl 1', 'Girl 2']);
+  // Kids import headers.
+  const csv = 'Icon Boy,Boys,Girls\nAru,Ben,Cia\n,,Dee\n';
+  assert.deepEqual((await parseUpload({ filename: 'k.csv', data: Buffer.from(csv).toString('base64') })).lists, { ICON: ['Aru'], BOY: ['Ben'], GIRL: ['Cia', 'Dee'] });
+
+  // The main event was untouched, and never heard the kids draw.
+  await pause(100);
+  assert.equal(mainHeard.length, 0, 'main screens heard nothing from the kids event');
+  const mainAfter = await state();
+  assert.equal(mainAfter.id, mainBefore.id);
+  assert.deepEqual(mainAfter.teams, mainBefore.teams);
+});

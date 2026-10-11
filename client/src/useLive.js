@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
+import { EVENT, storeKey } from './event.js';
 import * as fx from './fx.js';
 
-const CACHE_KEY = 'team-draw:last-state';
+const CACHE_KEY = storeKey('last-state');
 function cachedState() {
   try {
     return JSON.parse(localStorage.getItem(CACHE_KEY));
@@ -43,7 +44,7 @@ export function useLive(role = 'audience') {
   const [announce, setAnnounce] = useState(null);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId() } });
+    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId(), event: EVENT } });
     socketRef.current = socket;
     const say = (a, ms) => {
       setAnnounce({ ...a, key: Date.now() });
@@ -84,7 +85,7 @@ export function useLive(role = 'audience') {
         const wait = Math.max(0, trophyUntil - Date.now());
         setTimeout(() => {
           fx.jingle(s.current);
-          say({ kind: 'round', category: s.current, label, mode: s.mode }, 3000);
+          say({ kind: 'round', category: s.current, label, mode: s.mode, teamCount: s.teamCount }, 3000);
         }, wait);
       }
       setState(s);

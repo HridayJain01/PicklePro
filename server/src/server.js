@@ -9,7 +9,41 @@ import { isAdmin, login, loginLimiter, logout, requireAdmin } from './auth.js';
 import * as engine from './draw.js';
 import { attachCrowd, leaderboard, submitGuess } from './crowd.js';
 import { exportWorkbook, parseUpload } from './excel.js';
-import { DrawEvent, Guess, Player, Tournament } from './models.js';
+import { DrawEvent, Guess, Player, Tournament, eventOf } from './models.js';
+
+const voterOf = req => (typeof req.query.voter === 'string' ? req.query.voter : undefined);
+
+// Public + host routes for one event.
+function eventApi(ev) {
+  const api = express.Router();
+  api.get('/state', async (req, res) => res.json(await engine.publicState(undefined, ev)));
+  // Audience predictions: public, rate limited, scored only against revealed picks.
+  api.post('/guess', async (req, res) => res.json(await submitGuess(req.body ?? {}, ev)));
+  api.get('/leaderboard', async (req, res) => res.json(await leaderboard({ voter: voterOf(req) }, ev)));
+
+  // Everything below mutates or reveals admin data: cookie required, enforced server-side.
+  const admin = express.Router();
+  admin.use(requireAdmin);
+  const ok = fn => async (req, res) => res.json((await fn(req.body ?? {}, ev)) ?? { ok: true });
+  admin.get('/admin', async (req, res) => res.json(await engine.adminState(ev)));
+  admin.patch('/tournament', ok(engine.updateSettings));
+  admin.post('/tournaments', ok(engine.createTournament));
+  admin.put('/players', ok(engine.savePlayers));
+  admin.post('/players/import', ok(parseUpload));
+  admin.post('/start', ok(engine.startDraw));
+  admin.post('/draw', ok(engine.draw));
+  admin.post('/undo', ok(engine.undo));
+  admin.post('/finalize', ok(engine.finalize));
+  admin.get('/tournaments', async (req, res) => res.json(await engine.listTournaments(ev)));
+  // ?tournament=<id> exports an archived tournament; without it, the active one.
+  admin.get('/export.xlsx', async (req, res) => {
+    const { buffer, name } = await exportWorkbook(req.query.tournament, ev);
+    const file = `${name.replace(/[^\w -]+/g, '').trim() || 'team-draw'}.xlsx`;
+    res.attachment(file).type('xlsx').send(Buffer.from(buffer));
+  });
+  api.use(admin);
+  return api;
+}
 
 export function createApp() {
   const app = express();
@@ -22,35 +56,13 @@ export function createApp() {
     const db = mongoose.connection.readyState === 1;
     res.status(db ? 200 : 503).json({ ok: db, db: db ? 'up' : 'down' });
   });
-  app.get('/api/state', async (req, res) => res.json(await engine.publicState()));
   app.get('/api/auth/me', (req, res) => res.json({ admin: isAdmin(req) }));
   app.post('/api/auth/login', loginLimiter, login);
   app.post('/api/auth/logout', logout);
-  // Audience predictions: public, rate limited, scored only against revealed picks.
-  app.post('/api/guess', async (req, res) => res.json(await submitGuess(req.body ?? {})));
-  app.get('/api/leaderboard', async (req, res) => res.json(await leaderboard({ voter: typeof req.query.voter === 'string' ? req.query.voter : undefined })));
-
-  // Everything below mutates or reveals admin data: cookie required, enforced server-side.
-  const admin = express.Router();
-  admin.use(requireAdmin);
-  const ok = fn => async (req, res) => res.json((await fn(req.body ?? {})) ?? { ok: true });
-  admin.get('/admin', async (req, res) => res.json(await engine.adminState()));
-  admin.patch('/tournament', ok(engine.updateSettings));
-  admin.post('/tournaments', ok(engine.createTournament));
-  admin.put('/players', ok(engine.savePlayers));
-  admin.post('/players/import', ok(parseUpload));
-  admin.post('/start', ok(engine.startDraw));
-  admin.post('/draw', ok(engine.draw));
-  admin.post('/undo', ok(engine.undo));
-  admin.post('/finalize', ok(engine.finalize));
-  admin.get('/tournaments', async (req, res) => res.json(await engine.listTournaments()));
-  // ?tournament=<id> exports an archived tournament; without it, the active one.
-  admin.get('/export.xlsx', async (req, res) => {
-    const { buffer, name } = await exportWorkbook(req.query.tournament);
-    const file = `${name.replace(/[^\w -]+/g, '').trim() || 'team-draw'}.xlsx`;
-    res.attachment(file).type('xlsx').send(Buffer.from(buffer));
-  });
-  app.use('/api', admin);
+  // Two events on one engine: /api/kids/* is the kids draw, /api/* the main draw. Same routes,
+  // same rules, separate tournaments. Kids is mounted first so /api never swallows /api/kids.
+  app.use('/api/kids', eventApi('kids'));
+  app.use('/api', eventApi('main'));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
   // Serve the built PWA when it exists, so this server's own URL is a full fallback for Vercel.
@@ -83,34 +95,38 @@ export async function start({ port = 4000, mongoUri = process.env.MONGODB_URI } 
   // connection. Each browser sends a random id kept in localStorage, so refreshes, reconnects and
   // extra tabs in the same browser count once; host (/admin) and projector (/screen) connections
   // are not audience and are excluded. It counts browsers, not people.
-  const audience = new Map(); // viewerId -> number of live sockets
-  let lastViewers = -1;
-  let viewersTimer = null;
-  const viewerCount = () => audience.size;
-  const announceViewers = () => {
-    if (viewersTimer) return;
-    viewersTimer = setTimeout(() => {
-      viewersTimer = null;
-      const n = viewerCount();
-      if (n !== lastViewers) io.emit('viewers', { count: (lastViewers = n) });
+  // Kept per event: the kids screens show the kids audience, the main screens the main audience.
+  const audience = { main: new Map(), kids: new Map() }; // viewerId -> number of live sockets
+  const lastViewers = { main: -1, kids: -1 };
+  const viewersTimer = { main: null, kids: null };
+  const viewerCount = ev => audience[ev].size;
+  const announceViewers = ev => {
+    if (viewersTimer[ev]) return;
+    viewersTimer[ev] = setTimeout(() => {
+      viewersTimer[ev] = null;
+      const n = viewerCount(ev);
+      if (n !== lastViewers[ev]) io.to(engine.roomOf(ev)).emit('viewers', { count: (lastViewers[ev] = n) });
     }, 1500);
   };
   io.on('connection', async socket => {
-    const { role, viewer } = socket.handshake.auth ?? {};
+    const { role, viewer, event } = socket.handshake.auth ?? {};
+    const ev = eventOf(event);
+    socket.join(engine.roomOf(ev));
     const viewerId = role === 'audience' && typeof viewer === 'string' && /^[\w-]{8,64}$/.test(viewer) ? viewer : null;
     if (viewerId) {
-      audience.set(viewerId, (audience.get(viewerId) ?? 0) + 1);
+      const map = audience[ev];
+      map.set(viewerId, (map.get(viewerId) ?? 0) + 1);
       socket.on('disconnect', () => {
-        const left = (audience.get(viewerId) ?? 1) - 1;
-        if (left > 0) audience.set(viewerId, left);
-        else audience.delete(viewerId);
-        announceViewers();
+        const left = (map.get(viewerId) ?? 1) - 1;
+        if (left > 0) map.set(viewerId, left);
+        else map.delete(viewerId);
+        announceViewers(ev);
       });
-      announceViewers();
+      announceViewers(ev);
     }
-    socket.emit('viewers', { count: viewerCount() });
+    socket.emit('viewers', { count: viewerCount(ev) });
     try {
-      socket.emit('tournament:state', await engine.publicState());
+      socket.emit('tournament:state', await engine.publicState(undefined, ev));
     } catch (err) {
       console.error('initial state failed', err);
     }
@@ -122,7 +138,8 @@ export async function start({ port = 4000, mongoUri = process.env.MONGODB_URI } 
     port: server.address().port,
     async close() {
       engine.setIo(null);
-      clearTimeout(viewersTimer);
+      clearTimeout(viewersTimer.main);
+      clearTimeout(viewersTimer.kids);
       await io.close();
       await mongoose.disconnect();
     },

@@ -16,7 +16,7 @@ export const Board = memo(function Board({ state, show, mine = null, matches = n
             id={`team-card-${team.number}`}
             className={['team', team.number === highlight && 'current', team.number === mine && 'mine', matches?.has(team.number) && 'match'].filter(Boolean).join(' ')}
           >
-            {team.number === mine && <span className="mine-tag">⭐ Your team</span>}
+            {team.number === mine && <span className="mine-tag">⭐ Know your team</span>}
             <span className="team-no">
               <span className="sr-only">Team </span>
               {team.number}
@@ -29,7 +29,7 @@ export const Board = memo(function Board({ state, show, mine = null, matches = n
                 const name = masked ? null : team.players[c.key];
                 return (
                   <div key={c.key} className={isFresh ? 'fresh' : undefined} style={isFresh ? { animationDelay: `${(team.number - show.teamNumbers[0]) * 90}ms` } : undefined}>
-                    <dt>{c.label.length > 1 ? <abbr title={c.label}>{c.label[0]}</abbr> : c.label}</dt>
+                    <dt>{c.label.length > 1 ? <abbr title={c.label}>{c.short ?? c.label[0]}</abbr> : c.label}</dt>
                     <dd>{masked ? '???' : (name ?? '—')}</dd>
                   </div>
                 );

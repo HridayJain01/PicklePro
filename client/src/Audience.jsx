@@ -122,12 +122,29 @@ export function Predict({ state, show, board }) {
     wasOpen.current = open;
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const boardView = board?.players > 0 && (
-    <div className="leader">
-      <button type="button" className="leader-toggle" onClick={() => setShowBoard(o => !o)} aria-expanded={showBoard}>
-        🏆 Prediction leaderboard{board.me ? (board.me.correct ? ` · you're #${board.me.rank} (${board.me.correct} right)` : ` · ${board.me.total} guess${board.me.total === 1 ? '' : 'es'}, no hits yet`) : ''} <span>{showBoard ? '▴' : '▾'}</span>
-      </button>
-      {showBoard && <LeaderList rows={board.top.map(r => ({ nickname: r.nickname, score: r.correct }))} />}
+  // The leaderboard is its own clearly-labelled block (feedback: people predicted without
+  // noticing there was one): the top 3 are always visible, with your rank and a big button.
+  const rows = board?.top?.map(r => ({ nickname: r.nickname, score: r.correct })) ?? [];
+  const boardView = (
+    <div className="leaderboard-box">
+      <div className="leaderboard-head">
+        <span className="leaderboard-title">🏆 Leaderboard</span>
+        {board?.me
+          ? <span className="leaderboard-me">You: #{board.me.rank} · {board.me.correct} right</span>
+          : board?.players > 0 && <span className="leaderboard-me muted">Make a pick to join</span>}
+      </div>
+      {board?.players > 0 ? (
+        <>
+          <LeaderList rows={rows} limit={showBoard ? 10 : 3} />
+          {board.players > 3 && (
+            <button type="button" className="leaderboard-more" onClick={() => setShowBoard(o => !o)} aria-expanded={showBoard}>
+              {showBoard ? 'Show top 3' : `See full leaderboard (${board.players} players)`}
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="leaderboard-empty">Scores appear after the next reveal. Every correct pick = 1 point — get your pick in to be on it!</p>
+      )}
     </div>
   );
 
@@ -267,7 +284,7 @@ export function Announce({ announce }) {
           <span className="announce-icon">🏓</span>
           <span>Next round</span>
           <strong>{announce.label}</strong>
-          <span>{announce.mode === 'shuffle' ? 'All 28 teams in one shuffle' : 'One spin per team'}</span>
+          <span>{announce.mode === 'shuffle' ? `All ${announce.teamCount} teams in one shuffle` : 'One spin per team'}</span>
         </>
       )}
     </div>

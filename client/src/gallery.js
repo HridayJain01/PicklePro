@@ -40,7 +40,7 @@ export async function downloadGallery(state, { save = true } = {}) {
   g.fillStyle = 'rgba(244,247,242,0.8)';
   g.fillText(`THE ${state.teamCount} TEAMS · ${state.categories.map(x => x.label).join(' · ')}`, 162, 104);
 
-  const cols = 7;
+  const cols = state.teams.length <= 4 ? state.teams.length : 7; // kids: 4 big cards in a row
   const rows = Math.ceil(state.teams.length / cols);
   const pad = 22;
   const top = 140;
@@ -70,7 +70,7 @@ export async function downloadGallery(state, { save = true } = {}) {
       const ly = y + 64 + k * lineH + lineH / 2;
       g.fillStyle = 'rgba(244,247,242,0.55)';
       g.font = `700 15px ${body}`;
-      g.fillText(cat.label === 'Women' ? 'W' : cat.label, x + 14, ly);
+      g.fillText(cat.short ?? (cat.label === 'Women' ? 'W' : cat.label), x + 14, ly);
       g.fillStyle = '#ffffff';
       g.font = `700 19px ${body}`;
       let name = t.players[cat.key] ?? '—';

@@ -236,3 +236,63 @@
 @media (min-width: 760px) { .topbar .brand-logo { width: 84px; height: 84px; } }
 @media (max-width: 360px) { .topbar .brand-logo { width: 58px; height: 58px; } }
 .topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }
+
+/* ---------- Header: "👀 N watching" sits under LIVE, never against the title ---------- */
+.topbar .brand { min-width: 0; flex: 1 1 auto; }
+.topbar .brand > div { min-width: 0; }
+.topbar-right { flex: none; flex-direction: column; align-items: flex-end; gap: 4px; }
+.topbar-right .viewers { font-size: 0.72rem; }
+
+/* ---------- Know your team: seat chain + team alert ---------- */
+.team-chain { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.team-chain li {
+  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 12px; background: rgb(255 255 255 / 0.06); border: 1px solid rgb(255 255 255 / 0.12);
+}
+.seat-avatar {
+  grid-row: 1 / 3; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  font: 800 0.85rem/1 var(--display); background: var(--paddle-green); color: #fff;
+}
+.seat-role { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.seat-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-chain li.empty { border-style: dashed; border-color: rgb(255 255 255 / 0.28); background: transparent; }
+.team-chain li.empty .seat-avatar { background: rgb(255 255 255 / 0.1); font-size: 1rem; }
+.team-chain li.empty .seat-name { color: var(--muted); font-weight: 600; }
+.team-chain li.now { border-color: var(--ball); }
+.team-chain li.now .seat-avatar { animation: thump 0.9s ease-in-out infinite; }
+.team-chain li.me { border-color: var(--ball); background: rgb(244 224 77 / 0.14); }
+.team-chain li.me .seat-avatar { background: var(--ball); color: var(--net); }
+.seat-you { position: absolute; top: -8px; right: 8px; padding: 2px 7px; border-radius: 999px; background: var(--ball); color: var(--net); font: 800 0.65rem/1.2 var(--body); }
+.team-alert { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; padding: 10px 12px; border-radius: 10px;
+  background: rgb(108 192 74 / 0.14); border: 1px solid rgb(108 192 74 / 0.45); font-size: 0.88rem; }
+.team-alert b { color: #d6ffc4; }
+.team-alert-bell { font-size: 1.1rem; animation: ring 2.4s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes ring { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(14deg); } 80% { transform: rotate(-12deg); } 85% { transform: rotate(8deg); } 90% { transform: rotate(-5deg); } }
+
+/* ---------- Prediction leaderboard: a clearly labelled box, top 3 always visible ---------- */
+.leaderboard-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: linear-gradient(160deg, rgb(244 224 77 / 0.16), rgb(11 31 82 / 0.6)); border: 2px solid var(--ball); }
+.leaderboard-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.leaderboard-title { font: 900 1.15rem/1 var(--display); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ball); }
+.leaderboard-me { font-weight: 800; font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; background: var(--ball); color: var(--net); }
+.leaderboard-me.muted { background: rgb(255 255 255 / 0.12); color: var(--line); }
+.leaderboard-box .leader-list { margin: 0; }
+.leaderboard-more { justify-self: start; font: 700 0.9rem/1 var(--body); padding: 9px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--ball); background: transparent; color: var(--ball); touch-action: manipulation; }
+.leaderboard-more:active { transform: scale(0.98); }
+.leaderboard-empty { margin: 0; color: var(--line); font-size: 0.9rem; }
+
+/* ---------- Resume sound after coming back to the app ---------- */
+.resume-sound {
+  position: fixed; left: 50%; top: max(12px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 70;
+  font: 800 1rem/1 var(--body); padding: 14px 20px; border-radius: 999px; border: 0; cursor: pointer;
+  background: var(--ball); color: var(--net); box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); animation: pop 0.35s ease-out both;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.resume-sound:active { transform: translateX(-50%) scale(0.97); }
+
+/* ---------- Kids host: fixed format card ---------- */
+.fixed-format { display: grid; gap: 6px; }
+.fixed-format .legend { margin: 0; font-weight: 700; }
+.fixed-format ol { margin: 0; padding-left: 1.2em; }
+@media (prefers-reduced-motion: reduce) { .team-alert-bell, .team-chain li.now .seat-avatar { animation: none; } }
+@media (max-width: 480px) { .team-chain { grid-template-columns: 1fr; } }

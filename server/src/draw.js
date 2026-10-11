@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
-import { Tournament, Player, DrawEvent, LABELS, ALL_CATEGORIES } from './models.js';
+import { ALL_POOLS, DrawEvent, EVENTS, LABELS, Player, SHORT, SHUFFLE, Tournament, eventOf, poolOf } from './models.js';
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -10,8 +10,8 @@ export class HttpError extends Error {
 }
 const fail = (status, message) => { throw new HttpError(status, message); };
 
-// ponytail: in-process lock serialises every mutation. Correct because we run one server
-// instance; a multi-instance deploy would need Mongo transactions instead.
+// ponytail: in-process lock serialises every mutation (both events). Correct because we run one
+// server instance; a multi-instance deploy would need Mongo transactions instead.
 let queue = Promise.resolve();
 function locked(fn) {
   const run = queue.then(fn);
@@ -19,15 +19,14 @@ function locked(fn) {
   return run;
 }
 
+// Screens join one Socket.IO room per event, so each event only hears its own draw.
 let io = null;
 export const setIo = server => { io = server; };
-const emit = (event, data) => io?.emit(event, data);
-// Last state sent to screens.
-let lastPublic = null;
-export const cachedState = () => lastPublic;
-async function broadcast() {
+export const roomOf = ev => `event:${eventOf(ev)}`;
+const emit = (ev, name, data) => io?.to(roomOf(ev)).emit(name, data);
+async function broadcast(ev) {
   try {
-    emit('tournament:state', await publicState());
+    emit(ev, 'tournament:state', await publicState(undefined, ev));
   } catch (err) {
     console.error('broadcast failed', err);
   }
@@ -35,7 +34,8 @@ async function broadcast() {
 
 export const cleanName = value => String(value ?? '').replace(/\s+/g, ' ').trim();
 const keyOf = name => name.toLowerCase();
-const modeOf = category => (category === 'A' ? 'shuffle' : 'spin');
+const modeOf = category => (SHUFFLE.has(category) ? 'shuffle' : 'spin');
+export const isShuffle = category => SHUFFLE.has(category);
 
 // Fisher–Yates with a CSPRNG.
 export function shuffle(items) {
@@ -47,20 +47,27 @@ export function shuffle(items) {
   return a;
 }
 
-export async function activeTournament() {
-  return (await Tournament.findOne().sort({ _id: -1 })) ?? Tournament.create({ name: 'Team Draw' });
+const eventQuery = ev => (eventOf(ev) === 'main' ? { $or: [{ event: 'main' }, { event: { $exists: false } }] } : { event: eventOf(ev) });
+const defaultsFor = ev => {
+  const e = EVENTS[eventOf(ev)];
+  return { event: eventOf(ev), teamCount: e.teamCount, categories: e.defaults };
+};
+
+export async function activeTournament(ev = 'main') {
+  return (await Tournament.findOne(eventQuery(ev)).sort({ _id: -1 }))
+    ?? Tournament.create({ name: eventOf(ev) === 'kids' ? 'Kids Team Draw' : 'Team Draw', ...defaultsFor(ev) });
 }
 
-// `tournamentId` reads an archived tournament; by default it's the active (newest) one.
-async function findTournament(id) {
-  const t = mongoose.isValidObjectId(id) && await Tournament.findById(id);
+// `tournamentId` reads an archived tournament of this event; by default it's the active one.
+async function findTournament(id, ev) {
+  const t = mongoose.isValidObjectId(id) && await Tournament.findOne({ _id: id, ...eventQuery(ev) });
   return t || fail(404, 'Tournament not found');
 }
 
-// Every tournament, newest first; the first one is active, the rest are the archive.
-export async function listTournaments() {
+// Every tournament of the event, newest first; the first one is active, the rest are the archive.
+export async function listTournaments(ev = 'main') {
   const [all, counts] = await Promise.all([
-    Tournament.find().sort({ _id: -1 }).lean(),
+    Tournament.find(eventQuery(ev)).sort({ _id: -1 }).lean(),
     DrawEvent.aggregate([{ $match: { voided: false } }, { $group: { _id: '$tournamentId', n: { $sum: 1 } } }]),
   ]);
   const drawn = new Map(counts.map(c => [String(c._id), c.n]));
@@ -76,8 +83,8 @@ export async function listTournaments() {
   }));
 }
 
-export async function snapshot(tournamentId) {
-  const t = tournamentId ? await findTournament(tournamentId) : await activeTournament();
+export async function snapshot(tournamentId, ev = 'main') {
+  const t = tournamentId ? await findTournament(tournamentId, ev) : await activeTournament(ev);
   const [players, events] = await Promise.all([
     Player.find({ tournamentId: t._id }).sort({ _id: 1 }).lean(),
     DrawEvent.find({ tournamentId: t._id }).sort({ sequence: 1 }).lean(),
@@ -91,6 +98,11 @@ export async function snapshot(tournamentId) {
     current: t.status === 'LIVE' ? t.categories[t.currentIndex] : null,
   };
 }
+
+// Pools used by this tournament's rounds, and how many players each needs (teams × rounds sharing it).
+const poolsOf = t => [...new Set(t.categories.map(poolOf))];
+const neededFor = (t, pool) => t.teamCount * t.categories.filter(c => poolOf(c) === pool).length;
+const inPool = (players, pool) => players.filter(p => p.category === pool);
 
 // The exact text that is hashed. Clients rebuild it to verify; keep in sync with client/src/fair.js.
 export const proofText = ({ actionId, category, assignments, salt }) =>
@@ -108,17 +120,18 @@ const actionSummary = events => ({
 });
 
 // What the audience (and admin board) may see: nothing that is still behind a running spin.
-export async function publicState(s) {
-  s ??= await snapshot();
+export async function publicState(s, ev = 'main') {
+  s ??= await snapshot(undefined, ev);
   const { t, players, revealed, pending, current } = s;
   const teams = Array.from({ length: t.teamCount }, (_, i) => ({ number: i + 1, players: {} }));
-  for (const e of revealed) teams[e.teamNumber - 1].players[e.category] = e.playerName;
+  for (const e of revealed) if (teams[e.teamNumber - 1]) teams[e.teamNumber - 1].players[e.category] = e.playerName;
   const assigned = new Set(revealed.map(e => String(e.playerId)));
   const countOf = c => revealed.filter(e => e.category === c).length;
   const filled = current ? countOf(current) : 0;
   const last = revealed.at(-1);
-  return (lastPublic = {
+  return {
     id: String(t._id),
+    event: eventOf(t.event),
     name: t.name,
     status: t.status,
     teamCount: t.teamCount,
@@ -126,14 +139,19 @@ export async function publicState(s) {
     categories: t.categories.map((key, i) => ({
       key,
       label: LABELS[key],
+      short: SHORT[key],
+      shuffle: SHUFFLE.has(key),
       state: t.status === 'COMPLETED' || i < t.currentIndex ? 'done' : key === current ? 'active' : 'upcoming',
-      players: players.filter(p => p.category === key).length,
+      players: inPool(players, poolOf(key)).length,
+      needed: neededFor(t, poolOf(key)),
       assigned: countOf(key),
+      // Same rule the server enforces before a draw (Girl 2 is ready once Girl 1 has started).
+      ready: isReady(s, key),
     })),
     current,
     mode: current && modeOf(current),
     currentTeam: pending.length ? pending[0].teamNumber : current && filled < t.teamCount ? filled + 1 : null,
-    remaining: players.filter(p => p.category === current && !assigned.has(String(p._id))).map(p => p.name),
+    remaining: current ? inPool(players, poolOf(current)).filter(p => !assigned.has(String(p._id))).map(p => p.name) : [],
     teams,
     pending: pending.length
       ? { actionId: pending[0].actionId, category: pending[0].category, mode: modeOf(pending[0].category), teamNumbers: pending.map(e => e.teamNumber), commitment: pending[0].commitment ?? null }
@@ -141,23 +159,31 @@ export async function publicState(s) {
     last: last ? actionSummary(revealed.filter(e => e.actionId === last.actionId)) : null,
     predictions: t.predictions !== false,
     // Last few one-by-one picks, newest first, for the audience ticker (revealed only).
-    recent: revealed.filter(e => e.category !== 'A').slice(-5).reverse()
+    recent: revealed.filter(e => !SHUFFLE.has(e.category)).slice(-5).reverse()
       .map(e => ({ category: e.category, label: LABELS[e.category], teamNumber: e.teamNumber, name: e.playerName })),
-  });
+  };
 }
 
-// A category's list can change until its first draw; finalized categories never change.
-function isEditable({ t, active }, c) {
+// A player list can change until any round drawing from it has started; finalized never change.
+function isEditable({ t, active }, pool) {
   if (t.status === 'DRAFT') return true;
-  if (t.status !== 'LIVE' || t.categories.slice(0, t.currentIndex).includes(c)) return false;
-  return !active.some(e => e.category === c);
+  if (t.status !== 'LIVE') return false;
+  const rounds = t.categories.filter(c => poolOf(c) === pool);
+  if (rounds.some(c => t.categories.indexOf(c) < t.currentIndex)) return false;
+  return !active.some(e => rounds.includes(e.category));
 }
 
-export async function adminState() {
-  const s = await snapshot();
+export async function adminState(ev = 'main') {
+  const s = await snapshot(undefined, ev);
+  const e = EVENTS[eventOf(ev)];
+  const pools = [...new Set(e.available.map(poolOf))];
   return {
-    lists: Object.fromEntries(ALL_CATEGORIES.map(c => [c, s.players.filter(p => p.category === c).map(p => p.name)])),
-    editable: Object.fromEntries(ALL_CATEGORIES.map(c => [c, isEditable(s, c)])),
+    event: eventOf(ev),
+    fixed: e.fixed,
+    available: e.available.map(key => ({ key, label: LABELS[key], shuffle: SHUFFLE.has(key) })),
+    pools: pools.map(key => ({ key, label: LABELS[key], needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
+    lists: Object.fromEntries(pools.map(c => [c, inPool(s.players, c).map(p => p.name)])),
+    editable: Object.fromEntries(pools.map(c => [c, isEditable(s, c)])),
     history: historyRows(s),
   };
 }
@@ -177,9 +203,18 @@ export const historyRows = s => s.events
     salt: e.salt ?? '',
   }));
 
-function requireReady({ t, players }, c) {
-  const n = players.filter(p => p.category === c).length;
-  if (n !== t.teamCount) fail(400, `${LABELS[c]} needs exactly ${t.teamCount} players (has ${n})`);
+// Before a round's first draw its list must hold exactly the players its rounds will place;
+// once any round of that list has drawn (Girl 1), the next one (Girl 2) uses what is left.
+function isReady({ t, players, active }, c) {
+  const pool = poolOf(c);
+  const rounds = t.categories.filter(x => poolOf(x) === pool);
+  if (active.some(e => rounds.includes(e.category))) return true;
+  return inPool(players, pool).length === neededFor(t, pool);
+}
+function requireReady(s, c) {
+  if (isReady(s, c)) return;
+  const pool = poolOf(c);
+  fail(400, `${LABELS[pool]} needs exactly ${neededFor(s.t, pool)} players (has ${inPool(s.players, pool).length})`);
 }
 
 const requireIdle = ({ pending }) => pending.length && fail(409, 'Wait for the current draw to finish');
@@ -190,28 +225,31 @@ function requireName(value) {
   return name;
 }
 
-function scheduleReveal(actionId, ms) {
+function scheduleReveal(actionId, ms, ev) {
   setTimeout(async () => {
     try {
       const events = await DrawEvent.find({ actionId, voided: false }).sort({ sequence: 1 }).lean();
-      if (events.length) emit('draw:revealed', actionSummary(events));
-      await broadcast();
+      if (events.length) emit(ev, 'draw:revealed', actionSummary(events));
+      await broadcast(ev);
     } catch (err) {
       console.error('reveal failed', err);
     }
   }, Math.max(0, ms) + 25); // fire just after revealAt so the state we broadcast includes the result
 }
 
-// After a server restart, finish broadcasting any spin that was mid-animation.
+// After a server restart, finish broadcasting any spin that was mid-animation (in either event).
 export async function resumePendingReveals() {
   const now = Date.now();
   const pending = await DrawEvent.find({ voided: false, revealAt: { $gt: new Date(now) } }).lean();
-  const byAction = new Map(pending.map(e => [e.actionId, +e.revealAt]));
-  for (const [actionId, revealAt] of byAction) scheduleReveal(actionId, revealAt - now);
+  const byAction = new Map(pending.map(e => [e.actionId, e]));
+  for (const [actionId, e] of byAction) {
+    const t = await Tournament.findById(e.tournamentId).lean();
+    scheduleReveal(actionId, +e.revealAt - now, eventOf(t?.event));
+  }
 }
 
-export const updateSettings = body => locked(async () => {
-  const { t } = await snapshot();
+export const updateSettings = (body, ev = 'main') => locked(async () => {
+  const { t } = await snapshot(undefined, ev);
   if (body.name !== undefined) t.name = requireName(body.name);
   if (body.spinMs !== undefined) {
     if (!Number.isInteger(body.spinMs) || body.spinMs < 0 || body.spinMs > 30000) fail(400, 'spinMs must be 0–30000');
@@ -222,30 +260,33 @@ export const updateSettings = body => locked(async () => {
     t.predictions = body.predictions;
   }
   if (body.categories !== undefined) {
+    const e = EVENTS[eventOf(ev)];
+    if (e.fixed) fail(409, 'This event has a fixed draw format');
     if (t.status !== 'DRAFT') fail(409, 'Categories are locked once the draw starts');
     const c = body.categories;
-    const valid = Array.isArray(c) && c.length && new Set(c).size === c.length && c.every(x => ALL_CATEGORIES.includes(x));
-    if (!valid) fail(400, 'Categories must be a non-empty list of A, WOMEN, B, C, D');
+    const valid = Array.isArray(c) && c.length && new Set(c).size === c.length && c.every(x => e.available.includes(x));
+    if (!valid) fail(400, `Categories must be a non-empty list of ${e.available.join(', ')}`);
     t.categories = c;
   }
   await t.save();
-  await broadcast();
+  await broadcast(ev);
 });
 
-export const savePlayers = ({ lists } = {}) => locked(async () => {
+export const savePlayers = ({ lists } = {}, ev = 'main') => locked(async () => {
   if (!lists || typeof lists !== 'object' || Array.isArray(lists)) fail(400, 'lists must be an object');
-  const s = await snapshot();
+  const s = await snapshot(undefined, ev);
+  const allowed = new Set(EVENTS[eventOf(ev)].available.map(poolOf));
   const cats = Object.keys(lists);
   const cleaned = {};
   for (const c of cats) {
-    if (!ALL_CATEGORIES.includes(c)) fail(400, `Unknown category ${c}`);
+    if (!ALL_POOLS.includes(c) || !allowed.has(c)) fail(400, `Unknown category ${c}`);
     if (!isEditable(s, c)) fail(409, `${LABELS[c]} has already been drawn and can't be edited`);
     if (!Array.isArray(lists[c]) || lists[c].length > 200) fail(400, `${LABELS[c]} must be a list of at most 200 names`);
     cleaned[c] = lists[c].map(cleanName).filter(Boolean);
     const long = cleaned[c].find(n => n.length > 60);
     if (long) fail(400, `Name too long (max 60): "${long}"`);
   }
-  // Check uniqueness against the final state: untouched categories plus the new lists.
+  // Check uniqueness against the final state: untouched lists plus the new lists.
   const seen = new Map(s.players.filter(p => !cats.includes(p.category)).map(p => [keyOf(p.name), p.category]));
   const errors = [];
   for (const c of cats) {
@@ -258,32 +299,32 @@ export const savePlayers = ({ lists } = {}) => locked(async () => {
   if (errors.length) fail(400, errors.slice(0, 10).join('\n'));
   await Player.deleteMany({ tournamentId: s.t._id, category: { $in: cats } });
   await Player.insertMany(cats.flatMap(c => cleaned[c].map(name => ({ tournamentId: s.t._id, category: c, name, nameKey: keyOf(name) }))));
-  await broadcast();
+  await broadcast(ev);
 });
 
-export const createTournament = ({ name } = {}) => locked(async () => {
-  const s = await snapshot();
+export const createTournament = ({ name } = {}, ev = 'main') => locked(async () => {
+  const s = await snapshot(undefined, ev);
   requireIdle(s);
-  await Tournament.create({ name: requireName(name), categories: s.t.categories, spinMs: s.t.spinMs });
-  await broadcast();
+  await Tournament.create({ ...defaultsFor(ev), name: requireName(name), categories: s.t.categories, spinMs: s.t.spinMs });
+  await broadcast(ev);
 });
 
-export const startDraw = () => locked(async () => {
-  const s = await snapshot();
+export const startDraw = (body, ev = 'main') => locked(async () => {
+  const s = await snapshot(undefined, ev);
   if (s.t.status !== 'DRAFT') fail(409, 'The draw has already started');
   requireReady(s, s.t.categories[0]);
   s.t.status = 'LIVE';
   s.t.currentIndex = 0;
   await s.t.save();
-  await broadcast();
+  await broadcast(ev);
 });
 
-// The one draw engine. A: random permutation of the pool onto the open teams in one action.
-// Women/B/C/D: one secure random pick for the next team. `team` is the team the admin's
-// screen says is next; it only guards against double clicks and stale tabs, the server
-// decides everything else.
-export const draw = ({ category, team } = {}) => locked(async () => {
-  const s = await snapshot();
+// The one draw engine. Shuffle rounds (A, Icon Boy): random permutation of the list onto every
+// team in one action. Other rounds: one secure random pick for the next team. `team` is the team
+// the admin's screen says is next; it only guards against double clicks and stale tabs, the
+// server decides everything else.
+export const draw = ({ category, team } = {}, ev = 'main') => locked(async () => {
+  const s = await snapshot(undefined, ev);
   const { t, players, active, events, current } = s;
   if (t.status !== 'LIVE') fail(409, 'The draw is not live');
   if (category !== current) fail(409, `${LABELS[current]} is the active category`);
@@ -294,8 +335,10 @@ export const draw = ({ category, team } = {}) => locked(async () => {
   if (team !== filled + 1) fail(409, `Team ${filled + 1} is next — your screen was out of date`);
 
   const taken = new Set(active.map(e => String(e.playerId)));
-  const pool = players.filter(p => p.category === current && !taken.has(String(p._id)));
-  const picks = current === 'A' ? shuffle(pool) : [pool[randomInt(pool.length)]];
+  const pool = inPool(players, poolOf(current)).filter(p => !taken.has(String(p._id)));
+  const open = t.teamCount - filled;
+  if (pool.length < (SHUFFLE.has(current) ? open : 1)) fail(409, `Not enough ${LABELS[poolOf(current)]} players left`);
+  const picks = SHUFFLE.has(current) ? shuffle(pool).slice(0, open) : [pool[randomInt(pool.length)]];
   const actionId = randomUUID();
   const revealAt = new Date(Date.now() + t.spinMs);
   const salt = randomBytes(32).toString('hex');
@@ -313,8 +356,8 @@ export const draw = ({ category, team } = {}) => locked(async () => {
     playerName: p.name,
     revealAt,
   })));
-  scheduleReveal(actionId, t.spinMs);
-  emit('draw:spinning', {
+  scheduleReveal(actionId, t.spinMs, ev);
+  emit(ev, 'draw:spinning', {
     actionId,
     category: current,
     mode: modeOf(current),
@@ -322,23 +365,23 @@ export const draw = ({ category, team } = {}) => locked(async () => {
     candidates: pool.map(p => p.name),
     commitment,
   });
-  await broadcast();
+  await broadcast(ev);
   return { actionId };
 });
 
-export const undo = ({ actionId } = {}) => locked(async () => {
-  const s = await snapshot();
+export const undo = ({ actionId } = {}, ev = 'main') => locked(async () => {
+  const s = await snapshot(undefined, ev);
   requireIdle(s);
   const last = s.active.at(-1);
   if (s.t.status !== 'LIVE' || !last || last.category !== s.current) fail(409, 'Nothing to undo in the active category');
   if (last.actionId !== actionId) fail(409, 'That is no longer the latest draw — your screen was out of date');
   await DrawEvent.updateMany({ tournamentId: s.t._id, actionId }, { voided: true, voidedAt: new Date() });
-  emit('draw:undone', { actionId });
-  await broadcast();
+  emit(ev, 'draw:undone', { actionId });
+  await broadcast(ev);
 });
 
-export const finalize = ({ category } = {}) => locked(async () => {
-  const s = await snapshot();
+export const finalize = ({ category } = {}, ev = 'main') => locked(async () => {
+  const s = await snapshot(undefined, ev);
   const { t, current } = s;
   if (t.status !== 'LIVE' || category !== current) fail(409, `${LABELS[current] ?? 'No category'} is the active category`);
   requireIdle(s);
@@ -351,6 +394,6 @@ export const finalize = ({ category } = {}) => locked(async () => {
   t.currentIndex += 1;
   if (t.currentIndex >= t.categories.length) t.status = 'COMPLETED';
   await t.save();
-  emit('category:finalized', { category: current });
-  await broadcast();
+  emit(ev, 'category:finalized', { category: current });
+  await broadcast(ev);
 });

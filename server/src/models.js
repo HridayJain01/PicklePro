@@ -3,10 +3,43 @@ import mongoose from 'mongoose';
 const { Schema, model } = mongoose;
 
 export const TEAM_COUNT = 28;
-export const LABELS = { A: 'A', WOMEN: 'Women', B: 'B', C: 'C', D: 'D' };
-export const ALL_CATEGORIES = Object.keys(LABELS);
+
+// Draw categories (rounds) and their labels. Most rounds draw from a player list of the same
+// key; GIRL1 and GIRL2 both draw from the one GIRL list (2 girls per kids team).
+export const LABELS = {
+  A: 'A', WOMEN: 'Women', B: 'B', C: 'C', D: 'D',
+  ICON: 'Icon Boy', BOY: 'Boy', GIRL1: 'Girl 1', GIRL2: 'Girl 2', GIRL: 'Girls',
+};
+// Short codes for team cards (Girl 1 / Girl 2 must stay distinguishable).
+export const SHORT = { A: 'A', WOMEN: 'W', B: 'B', C: 'C', D: 'D', ICON: 'IB', BOY: 'B', GIRL1: 'G1', GIRL2: 'G2' };
+export const ALL_CATEGORIES = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2'];
+export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL'];
+const POOL = { GIRL1: 'GIRL', GIRL2: 'GIRL' };
+export const poolOf = category => POOL[category] ?? category;
+// Shuffle rounds put the whole list onto every team in one action (seeds / captains).
+export const SHUFFLE = new Set(['A', 'ICON']);
+
+// Two separate events share the engine. Each has its own active tournament, links and screens.
+export const EVENTS = {
+  main: {
+    teamCount: TEAM_COUNT,
+    available: ['A', 'WOMEN', 'B', 'C', 'D'],
+    defaults: ['A', 'WOMEN', 'B', 'C'],
+    fixed: false,
+  },
+  // Kids: 4 teams of 2 boys + 2 girls; exactly one Icon Boy per team.
+  kids: {
+    teamCount: 4,
+    available: ['ICON', 'BOY', 'GIRL1', 'GIRL2'],
+    defaults: ['ICON', 'BOY', 'GIRL1', 'GIRL2'],
+    fixed: true,
+  },
+};
+export const eventOf = value => (value === 'kids' ? 'kids' : 'main');
 
 export const Tournament = model('Tournament', new Schema({
+  // Which event this belongs to. Older documents have no field and are the main event.
+  event: { type: String, enum: ['main', 'kids'], default: 'main' },
   name: { type: String, required: true, trim: true, maxlength: 100 },
   status: { type: String, enum: ['DRAFT', 'LIVE', 'COMPLETED'], default: 'DRAFT' },
   teamCount: { type: Number, default: TEAM_COUNT },
@@ -21,7 +54,7 @@ export const Tournament = model('Tournament', new Schema({
 
 const playerSchema = new Schema({
   tournamentId: { type: Schema.Types.ObjectId, required: true },
-  category: { type: String, enum: ALL_CATEGORIES, required: true },
+  category: { type: String, enum: ALL_POOLS, required: true }, // the player list (pool)
   name: { type: String, required: true },
   nameKey: { type: String, required: true },
 }, { timestamps: true });

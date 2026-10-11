@@ -106,6 +106,13 @@ if (typeof window !== 'undefined') {
   };
   window.addEventListener('pointerdown', resumeOnGesture, { capture: true, passive: true });
   window.addEventListener('keydown', resumeOnGesture, { capture: true });
+  // Coming back from another app/tab: phones suspend audio while hidden. Try to resume; if the
+  // browser insists on a tap, the status becomes 'locked' and the page shows a resume button.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !wanted || !ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {}).finally(notify);
+    notify();
+  });
 }
 
 // Silence everything now: cancel scheduled sounds and stop long-running ones.
@@ -187,24 +194,22 @@ const track = stop => {
 };
 
 // ---------- The slot machine (primary draw sound) ----------
-// Classic casino slot, synthesized (original, no samples): lever pull → fast "bleep-bloop"
-// melody over a soft mechanical reel rattle, both slowing with the reel → reel thunk →
-// ringing jackpot bells with a coin cascade.
+// A real mechanical slot machine, synthesized (original, no samples, no arcade melody):
+// lever spring + gear catch → motor hum and reel mechanism whirr, slowing into distinct clacks →
+// reel thunk → ringing bell and a coin cascade.
 
-// Lever pull: ratchet clicks winding up, then the clunk as the reels release.
+// Lever pull, purely mechanical: the arm's spring stretching, then the gears catching (no beeps).
 export function leverPull() {
-  for (let i = 0; i < 6; i++) {
-    later(() => noiseShape({ type: 'bandpass', freq: 2200 + i * 120, q: 4, env: [[2, 0.07], [22, 0.0001]] }), i * 28);
-  }
+  noiseShape({ type: 'bandpass', freq: 900, q: 6, env: [[20, 0.05], [160, 0.06], [220, 0.0001]] }); // spring
   later(() => {
-    tone({ freq: 140, to: 70, type: 'square', ms: 140, gain: 0.16 });
-    noiseShape({ type: 'lowpass', freq: 500, env: [[3, 0.18], [120, 0.0001]] });
-  }, 190);
+    tone({ freq: 95, to: 55, type: 'triangle', ms: 160, gain: 0.2 }); // gear catch
+    noiseShape({ type: 'lowpass', freq: 380, env: [[3, 0.2], [130, 0.0001]] });
+  }, 200);
 }
 
-// Casino melody notes (C major arpeggio run up and down, like a slot's spin jingle).
-const SLOT_NOTES = [523, 659, 784, 1047, 1319, 1047, 784, 659];
-
+// Mechanical reels. A low motor hum plus the reel mechanism: a click every time a symbol passes
+// the pawl. At full speed the clicks run ~30/s and blur into a "rrrrr" whirr (not separate
+// ticks); as the reel slows they space out into distinct clacks, like a real slot machine.
 // Returns a controller: setSpeed(rowsPerSecond), clunk(), stop().
 export function slotReel() {
   const a = ready();
@@ -212,56 +217,55 @@ export function slotReel() {
   leverPull();
   const t = a.currentTime;
 
-  // Soft mechanical rattle under the melody: band-passed noise, amplitude-wobbled at the reel rate.
-  const rattleSrc = a.createBufferSource();
-  rattleSrc.buffer = noiseBuffer(a);
-  rattleSrc.loop = true;
-  const rattleBp = a.createBiquadFilter();
-  rattleBp.type = 'bandpass';
-  rattleBp.frequency.value = 1800;
-  rattleBp.Q.value = 1.2;
-  const rattle = a.createGain();
-  rattle.gain.value = 0;
-  const wob = a.createOscillator();
-  const wobDepth = a.createGain();
-  wob.type = 'square';
-  wob.frequency.value = 20;
-  wobDepth.gain.value = 0.02;
-  wob.connect(wobDepth).connect(rattle.gain);
-  const rattleOut = a.createGain();
-  rattleOut.gain.setValueAtTime(0.0001, t);
-  rattleOut.gain.linearRampToValueAtTime(1, t + 0.35);
-  rattleSrc.connect(rattleBp).connect(rattle).connect(rattleOut).connect(master);
-  rattleSrc.start(t + 0.2);
-  wob.start(t + 0.2);
+  // Motor hum: a low, slightly rough drone through a low-pass, pitch following the speed.
+  const motor = a.createOscillator();
+  const motor2 = a.createOscillator();
+  motor.type = 'sawtooth';
+  motor2.type = 'triangle';
+  motor.frequency.value = 58;
+  motor2.frequency.value = 87;
+  const lp = a.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 420;
+  lp.Q.value = 0.7;
+  const hum = a.createGain();
+  hum.gain.setValueAtTime(0.0001, t);
+  hum.gain.linearRampToValueAtTime(0.07, t + 0.45);
+  motor.connect(lp);
+  motor2.connect(lp);
+  lp.connect(hum).connect(master);
+  motor.start(t + 0.2);
+  motor2.start(t + 0.2);
 
-  // Melody: a look-ahead scheduler on the audio clock (sample-accurate, no setInterval jitter in
-  // the notes themselves). Tempo follows the reel speed.
+  // Reel mechanism: short, dark, filtered clicks scheduled on the audio clock.
   let speed = 13;
-  let nextAt = t + 0.25;
-  let step = 0;
+  let nextAt = t + 0.3;
   let stopped = false;
+  const click = (at, loud) => {
+    const src = a.createBufferSource();
+    src.buffer = noiseBuffer(a);
+    const bp = a.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1500;
+    bp.Q.value = 2.5;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(loud, at + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
+    src.connect(bp).connect(g).connect(master);
+    src.start(at, Math.random() * 1.5, 0.04);
+  };
   const schedule = () => {
     if (stopped) return;
-    const notesPerSec = 4 + speed * 1.1; // ~18/s at full spin, a few per second when crawling
-    while (nextAt < a.currentTime + 0.12) {
-      const f = SLOT_NOTES[step % SLOT_NOTES.length];
-      const at = nextAt;
-      const osc = a.createOscillator();
-      const g = a.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(f, at);
-      g.gain.setValueAtTime(0.0001, at);
-      g.gain.linearRampToValueAtTime(0.045, at + 0.004);
-      g.gain.exponentialRampToValueAtTime(0.0001, at + Math.min(0.09, 0.8 / notesPerSec));
-      osc.connect(g).connect(master);
-      osc.start(at);
-      osc.stop(at + 0.1);
-      step += 1;
-      nextAt += 1 / notesPerSec;
+    const perSec = Math.max(2, speed * 2.3); // two pawl clicks per symbol
+    // Fast = soft whirr; slow = firmer individual clacks.
+    const loud = speed > 6 ? 0.025 : 0.05;
+    while (nextAt < a.currentTime + 0.1) {
+      click(nextAt, loud);
+      nextAt += 1 / perSec;
     }
   };
-  const timer = setInterval(schedule, 30);
+  const timer = setInterval(schedule, 25);
   schedule();
 
   const stop = () => {
@@ -270,10 +274,10 @@ export function slotReel() {
     clearInterval(timer);
     try {
       const n = a.currentTime;
-      rattleOut.gain.cancelScheduledValues(n);
-      rattleOut.gain.setTargetAtTime(0.0001, n, 0.04);
-      rattleSrc.stop(n + 0.3);
-      wob.stop(n + 0.3);
+      hum.gain.cancelScheduledValues(n);
+      hum.gain.setTargetAtTime(0.0001, n, 0.05);
+      motor.stop(n + 0.3);
+      motor2.stop(n + 0.3);
     } catch { /* already stopped */ }
   };
   const untrack = track(stop);
@@ -283,16 +287,16 @@ export function slotReel() {
       speed = Math.max(0, rps);
       const n = a.currentTime;
       const s = Math.min(1, speed / 13);
-      wob.frequency.setTargetAtTime(Math.max(2, speed * 1.6), n, 0.05);
-      rattle.gain.setTargetAtTime(0.03 * s, n, 0.08);
-      wobDepth.gain.setTargetAtTime(0.025 * s + 0.005, n, 0.08);
-      rattleBp.frequency.setTargetAtTime(1200 + 900 * s, n, 0.1);
+      motor.frequency.setTargetAtTime(38 + 28 * s, n, 0.1);
+      motor2.frequency.setTargetAtTime(57 + 42 * s, n, 0.1);
+      lp.frequency.setTargetAtTime(260 + 260 * s, n, 0.1);
+      hum.gain.setTargetAtTime(0.025 + 0.05 * s, n, 0.12);
     },
-    // A reel position clacking into place during the crawl.
+    // A symbol locking past the window in the final crawl: a solid mechanical clack.
     clunk() {
       if (stopped) return;
-      tone({ freq: 300, to: 160, type: 'triangle', ms: 60, gain: 0.1 });
-      noiseShape({ type: 'bandpass', freq: 2000, q: 3, env: [[2, 0.06], [30, 0.0001]] });
+      tone({ freq: 210, to: 120, type: 'triangle', ms: 60, gain: 0.1 });
+      noiseShape({ type: 'bandpass', freq: 1200, q: 3, env: [[2, 0.07], [35, 0.0001]] });
     },
     stop: untrack,
   };
@@ -320,10 +324,12 @@ export function jackpot() {
   }
 }
 
-// Near-miss: the classic "so close" two-note slide before the reel settles.
+// Near-miss: the reel shuddering against the pawl before it settles (mechanical, no beep).
 export function nearMiss() {
-  tone({ freq: 784, to: 740, type: 'square', ms: 180, gain: 0.04 });
-  tone({ freq: 740, to: 698, type: 'square', ms: 260, gain: 0.04, delay: 190 });
+  for (let i = 0; i < 3; i++) {
+    later(() => noiseShape({ type: 'bandpass', freq: 1100, q: 3, env: [[2, 0.06], [40, 0.0001]] }), i * 90);
+  }
+  tone({ freq: 140, to: 110, type: 'triangle', ms: 260, gain: 0.06 });
 }
 
 // ---------- Secondary effects ----------

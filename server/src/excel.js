@@ -5,14 +5,14 @@ import { LABELS } from './models.js';
 
 const bold = sheet => { sheet.getRow(1).font = { bold: true }; };
 
-export async function exportWorkbook(tournamentId) {
-  const s = await snapshot(tournamentId);
+export async function exportWorkbook(tournamentId, ev = 'main') {
+  const s = await snapshot(tournamentId, ev);
   const wb = new ExcelJS.Workbook();
 
   const teams = wb.addWorksheet('Final Teams');
   teams.columns = [
     { header: 'Team', key: 'team', width: 8 },
-    ...s.t.categories.map(c => ({ header: c === 'WOMEN' ? 'Women' : `${c} Player`, key: c, width: 24 })),
+    ...s.t.categories.map(c => ({ header: c.length === 1 ? `${c} Player` : LABELS[c], key: c, width: 24 })),
   ];
   const rows = Array.from({ length: s.t.teamCount }, (_, i) => ({ team: i + 1 }));
   for (const e of s.revealed) rows[e.teamNumber - 1][e.category] = e.playerName;
@@ -41,6 +41,10 @@ export async function exportWorkbook(tournamentId) {
 // Header cell -> category: "A", "A Player", "Category B", "Women", "Ladies", ...
 export function headerCategory(text) {
   const h = String(text).toLowerCase().replace(/[^a-z]/g, '');
+  // Kids lists: "Icon Boy" / "Icon", "Boy" / "Boys", "Girl" / "Girls".
+  if (/^icon/.test(h)) return 'ICON';
+  if (/^boys?(players?)?$/.test(h)) return 'BOY';
+  if (/^girls?(players?)?$/.test(h)) return 'GIRL';
   if (/^(wom[ae]n|ladies|w$)/.test(h)) return 'WOMEN';
   const letter = h.match(/^(?:category|cat|group)?([abcd])(?:players?|category|cat|group)?$/)?.[1];
   return letter ? letter.toUpperCase() : null;
@@ -73,7 +77,7 @@ export async function parseUpload({ filename, data } = {}) {
     rows.push(Array.from({ length: sheet.columnCount }, (_, i) => cleanName(row.getCell(i + 1).text)));
   });
   const columns = (rows[0] ?? []).map(headerCategory);
-  if (!columns.some(Boolean)) throw new HttpError(400, `First row must name the categories: ${Object.values(LABELS).join(', ')}`);
+  if (!columns.some(Boolean)) throw new HttpError(400, 'First row must name the categories: A, Women, B, C, D (kids: Icon Boy, Boy, Girls)');
   const lists = {};
   columns.forEach((c, i) => {
     if (c) lists[c] = rows.slice(1).map(r => r[i]).filter(Boolean);
