@@ -1,5 +1,6 @@
 import { FloatingReactions, Predict, ReactionBar, useLeaderboard } from './Audience.jsx';
 import { BrandFooter, CreditStrip } from './Brand.jsx';
+import { DrawSwitch } from './DrawSwitch.jsx';
 import { useRef } from 'react';
 import { Board } from './Board.jsx';
 import { NowBar, Ticker } from './NowBar.jsx';
@@ -62,6 +63,7 @@ export function Live() {
     <div className="audience">
       <Header state={state} connected={connected} viewers={viewers} />
       <CreditStrip />
+      <DrawSwitch />
       <NowBar state={state} show={show} stageRef={stageRef} />
       <ConnectionBanner connected={connected} />
       <Steps state={state} />

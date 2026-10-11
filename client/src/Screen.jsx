@@ -5,7 +5,7 @@ import { useWakeLock } from './Follow.jsx';
 import { ConnectionBanner } from './Live.jsx';
 import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
-import { BASE } from './event.js';
+import { pageUrl } from './event.js';
 
 // Projector / TV view at /screen: a giant reel, the current category's picks, and a QR code
 // so the room can follow on their phones. Read-only, like the audience page.
@@ -13,7 +13,7 @@ export function Screen() {
   const { state, connected, show, finish, onReaction, announce } = useLive('screen');
   const board = useLeaderboard(state);
   useWakeLock(Boolean(state && state.status !== 'COMPLETED'));
-  const joinUrl = `${location.origin}${BASE}/`;
+  const joinUrl = `${location.origin}${pageUrl('/')}`;
   const [qr, setQr] = useState('');
   useEffect(() => {
     QRCode.toDataURL(joinUrl, { margin: 1, width: 360, color: { dark: '#0b1f52', light: '#ffffff' } }).then(setQr, () => {});

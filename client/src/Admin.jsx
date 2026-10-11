@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
-import { API, BASE, EVENT } from './event.js';
+import { API, pageUrl } from './event.js';
+import { DrawSwitch } from './DrawSwitch.jsx';
 import { FloatingReactions } from './Audience.jsx';
 import { downloadGallery } from './gallery.js';
 import { downloadReport } from './report.js';
@@ -107,11 +108,11 @@ function Dashboard({ onLogout }) {
   return (
     <>
       <Header state={state} connected={connected}>
-        <a className="btn btn-small" href={`${BASE}/`} target="_blank" rel="noreferrer">Audience view</a>
-        <a className="btn btn-small" href={`${BASE}/screen`} target="_blank" rel="noreferrer">Big screen</a>
-        <a className="btn btn-small" href={EVENT === 'kids' ? '/admin' : '/kids/admin'}>{EVENT === 'kids' ? 'Main draw host' : 'Kids draw host'}</a>
+        <a className="btn btn-small" href={pageUrl('/')} target="_blank" rel="noreferrer">Audience view</a>
+        <a className="btn btn-small" href={pageUrl('/screen')} target="_blank" rel="noreferrer">Big screen</a>
         <button className="btn btn-small" onClick={logout}>Log out</button>
       </Header>
+      <DrawSwitch />
       <ConnectionBanner connected={connected} />
       {error && (
         <div className="alert" role="alert">

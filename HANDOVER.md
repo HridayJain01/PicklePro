@@ -8,7 +8,7 @@ Live team-draw app for the **ICC Pickleball** 28-team doubles tournament. The ho
 
 ## 1. Links
 
-**Kids draw (separate event, same engine):** audience `/kids`, host `/kids/admin`, projector `/kids/screen` (same domains). 4 teams; each team = 1 Icon Boy + 1 Boy + 2 Girls. Rounds: Icon Boy (shuffled onto Teams 1–4 in one go, they are the team captains) → Boy → Girl 1 → Girl 2. Girl 1 and Girl 2 both draw from one Girls list of 8. Its own tournaments, lists, predictions, leaderboard, viewer count and Socket.IO room; API under `/api/kids/*`. The main event is unaffected and both can run at the same time.
+**Kids draw (separate auction mode, same engine):** same single links — a **Main draw | Kids draw** switch at the top of the audience page and the host page (adds `?draw=kids`; old `/kids`, `/kids/admin` links still work). 4 teams; each team = 1 Icon Boy + 1 Boy + 2 Girls. Rounds: Icon Boy (shuffled onto Teams 1–4 in one go, they are the team captains) → Boy → Girl 1 → Girl 2. Girl 1 and Girl 2 both draw from one Girls list of 8. Its own tournaments, lists, predictions, leaderboard, viewer count and Socket.IO room; API under `/api/kids/*`. The main event is unaffected and both can run at the same time.
 
 
 | Who | Link | Purpose |
@@ -229,6 +229,9 @@ Host phone remote, read winner names aloud (commentator voice), configurable tea
 ## Change log
 
 Newest first. Add an entry for every change.
+
+### 2026-10-12 — One link for both draws
+- `client/src/DrawSwitch.jsx`: Main draw / Kids draw tabs (with LIVE / Done badges from each draw's status) on the audience and host pages; switching reloads in the other mode via `?draw=kids` (`client/src/event.js`). Resume-sound prompt moved to the bottom (above the reaction bar).
 
 ### 2026-10-12 — Kids event, mechanical slot sound, Know your team, leaderboard box, resume sound
 - **Kids event** (`EVENTS` in `server/src/models.js`): tournaments carry `event` ('main' default, so existing data is main); every engine function takes the event; routes mounted twice (`/api/kids`, `/api`); sockets join `event:<name>` rooms (state, spins, reactions, viewer counts per event). Kids format fixed: 4 teams, rounds ICON (shuffle) / BOY / GIRL1 / GIRL2; GIRL1+GIRL2 share the GIRL list (`poolOf`), which must hold 8 before Girl 1 and is locked once Girl 1 starts; Girl 2 uses what is left. Generalised: shuffle rounds (`SHUFFLE` = A, ICON), per-round `needed`, `ready`, `short` codes (IB, B, G1, G2). Excel import headers "Icon Boy", "Boy(s)", "Girl(s)"; export uses labels. Client: `client/src/event.js` (EVENT/BASE/API, per-event storage keys); host page reads categories/lists from the server; fixed-format card for kids. New test: full kids draw + isolation from the main event (23/23).

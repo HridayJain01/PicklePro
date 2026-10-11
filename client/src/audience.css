@@ -283,7 +283,7 @@
 
 /* ---------- Resume sound after coming back to the app ---------- */
 .resume-sound {
-  position: fixed; left: 50%; top: max(12px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 70;
+  position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70; white-space: nowrap;
   font: 800 1rem/1 var(--body); padding: 14px 20px; border-radius: 999px; border: 0; cursor: pointer;
   background: var(--ball); color: var(--net); box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); animation: pop 0.35s ease-out both;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -296,3 +296,18 @@
 .fixed-format ol { margin: 0; padding-left: 1.2em; }
 @media (prefers-reduced-motion: reduce) { .team-alert-bell, .team-chain li.now .seat-avatar { animation: none; } }
 @media (max-width: 480px) { .team-chain { grid-template-columns: 1fr; } }
+
+/* ---------- Main / Kids draw switch (one link, two auction modes) ---------- */
+.draw-switch { display: flex; justify-content: center; gap: 6px; padding: 8px 12px 0; }
+.draw-switch a {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 16px; border-radius: 999px;
+  text-decoration: none; font: 800 0.95rem/1 var(--display); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--line); border: 2px solid rgb(255 255 255 / 0.25); background: rgb(11 31 82 / 0.6);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.draw-switch a.active { background: var(--ball); color: var(--net); border-color: var(--ball); }
+.draw-switch a:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+.draw-badge { font: 800 0.65rem/1 var(--body); padding: 3px 6px; border-radius: 999px; background: rgb(255 255 255 / 0.18); }
+.draw-badge.live { background: #e5383b; color: #fff; }
+.draw-switch a.active .draw-badge { background: var(--net); color: var(--ball); }
+.draw-switch a.active .draw-badge.live { background: #e5383b; color: #fff; }
