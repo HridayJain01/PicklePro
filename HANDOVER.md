@@ -232,6 +232,10 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-12 — Instant prediction picks, brighter credit with Contact chip
+- Predict: tapping a name locks it in on screen immediately; the save runs in the background and is rolled back with a message only if the server refuses (was a 1–3 s spinner on the free server).
+- Top credit at full brightness on a subtle band; a "Contact" chip opens the Sidh / Pinkesh tap-to-call buttons; WhatsApp icon beside it.
+
 ### 2026-10-12 — Kids split categories, real slot sound, quieter branding
 - Kids draw now has four separate lists drawn in this order: Boy Cat 1 (Icon, shuffled) → Girl Cat 1 → Boy Cat 2 → Girl Cat 2, 4 names each (was one shared Girls list of 8). Keys stay ICON / GIRL1 / BOY / GIRL2; a kids tournament still in DRAFT is switched to the new order automatically. Import headers: "Boy Cat 1", "Girl Cat 1", "Boy Cat 2", "Girl Cat 2" (old "Icon Boy" / "Boy" still work). Card codes B1 G1 B2 G2.
 - Slot sound: the reel no longer uses filtered noise (the "shh" hiss). Each symbol box passing the window is a pitched mechanical knock (max 16/s), lever is a ratchet, softer motor hum; bells and coins unchanged.

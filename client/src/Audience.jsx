@@ -176,21 +176,26 @@ export function Predict({ state, show, board }) {
   const guess = async name => {
     if (inFlight.current) return;
     inFlight.current = true;
-    setPendingName(name);
+    // Lock it in on screen straight away (no waiting on the network); if the server refuses,
+    // put the previous pick back and say why.
+    const previous = mine[key];
+    setMine(m => ({ ...m, [key]: name }));
+    setSaved(`✓ Locked in ${name} for Team ${team}`);
     setError('');
-    setSaved('');
+    setOpenList(false);
+    setQuery('');
     try {
-      // Only marked as your pick once the server has confirmed it.
       await api('/guess', { method: 'POST', body: { voterId: identity.voterId, nickname: identity.nickname, category: state.current, team, name } });
-      setMine(m => ({ ...m, [key]: name }));
-      setSaved(`✓ Locked in ${name} for Team ${team}`);
-      setOpenList(false);
-      setQuery('');
     } catch (err) {
-      setError(err.message);
+      setMine(m => {
+        const next = { ...m };
+        if (previous) next[key] = previous; else delete next[key];
+        return next;
+      });
+      setSaved('');
+      setError(`Couldn't save your pick: ${err.message}`);
     } finally {
       inFlight.current = false;
-      setPendingName(null);
     }
   };
 

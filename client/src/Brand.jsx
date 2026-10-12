@@ -59,14 +59,17 @@ function WhatsAppPill({ label }) {
 }
 
 // Top: a quiet one-line credit so the event stays the star: "Powered by SP Tech" and a small
-// WhatsApp icon. Tapping the credit reveals the two call buttons.
+// WhatsApp icon, plus a "Contact" chip that reveals both tap-to-call numbers.
 export function CreditStrip() {
   const [open, setOpen] = useState(false);
   return (
     <div className="credit-strip">
-      <button type="button" className="credit-id" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+      <span className="credit-id">
         <span className="credit-label">Powered by</span>
         <Wordmark small />
+      </span>
+      <button type="button" className="credit-call" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <PhoneIcon /> {open ? 'Close' : 'Contact'}
       </button>
       <WhatsAppPill />
       {open && (
