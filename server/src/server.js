@@ -127,7 +127,7 @@ export async function start({ port = 4000, mongoUri = process.env.MONGODB_URI } 
     }
     socket.emit('viewers', { count: viewerCount(ev) });
     try {
-      socket.emit('tournament:state', await engine.publicState(undefined, ev));
+      socket.emit('tournament:state', await engine.cachedPublicState(ev));
     } catch (err) {
       console.error('initial state failed', err);
     }

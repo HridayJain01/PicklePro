@@ -25,12 +25,24 @@ function limiter(max, ms) {
   };
 }
 
+// With hundreds of phones, relaying every tap to every phone multiplies (taps x phones). Instead,
+// each event relays at most RELAY_MAX reactions per RELAY_MS window; extra taps are dropped.
+const RELAY_MS = 500;
+const RELAY_MAX = 4;
+const relayed = new Map(); // room -> { t, n }
+const relayOk = room => {
+  const now = Date.now();
+  const r = relayed.get(room);
+  if (!r || now - r.t >= RELAY_MS) { relayed.set(room, { t: now, n: 1 }); return true; }
+  return ++r.n <= RELAY_MAX;
+};
+
 export function attachCrowd(io) {
   io.on('connection', socket => {
     const canReact = limiter(REACTIONS_PER_SEC, 1000);
     const room = engine.roomOf(eventOf(socket.handshake.auth?.event));
     socket.on('reaction', emoji => {
-      if (typeof emoji !== 'string' || !REACTIONS.includes(emoji) || !canReact(socket.id)) return;
+      if (typeof emoji !== 'string' || !REACTIONS.includes(emoji) || !canReact(socket.id) || !relayOk(room)) return;
       io.to(room).emit('reaction', { emoji }); // only screens of the same event
     });
   });

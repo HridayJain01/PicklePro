@@ -44,7 +44,7 @@ export function useLive(role = 'audience') {
   const [announce, setAnnounce] = useState(null);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { auth: { role, viewer: viewerId(), event: getEvent() } });
+    const socket = io(import.meta.env.VITE_SOCKET_URL || undefined, { transports: ['websocket', 'polling'], auth: { role, viewer: viewerId(), event: getEvent() } });
     socketRef.current = socket;
     const say = (a, ms) => {
       setAnnounce({ ...a, key: Date.now() });

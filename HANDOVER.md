@@ -232,6 +232,11 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-12 — Free-tier hardening for ~800 phones
+- New socket connections get the cached public state (no DB read per phone joining).
+- Reactions relayed at most 4 per 500 ms per event (taps x phones no longer floods the server).
+- Phones connect over WebSocket first (polling only as fallback), halving connection work.
+
 ### 2026-10-12 — Instant prediction picks, brighter credit with Contact chip
 - Predict: tapping a name locks it in on screen immediately; the save runs in the background and is rolled back with a message only if the server refuses (was a 1–3 s spinner on the free server).
 - Top credit at full brightness on a subtle band; a "Contact" chip opens the Sidh / Pinkesh tap-to-call buttons; WhatsApp icon beside it.
