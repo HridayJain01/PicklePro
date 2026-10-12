@@ -165,10 +165,10 @@ test(`${id()} order: next round refuses to start with a short list (27), fixable
 });
 
 // ---------- kids format, pick by pick ----------
-test(`${id()} kids: fresh tournament has 4 teams, rounds ICON/BOY/GIRL1/GIRL2`, async () => {
+test(`${id()} kids: fresh tournament has 4 teams, rounds ICON/GIRL1/BOY/GIRL2`, async () => {
   const s = await fresh(ctx, { ev: 'kids' });
   assert.equal(s.teamCount, 4);
-  assert.deepEqual(s.categories.map(c => c.key), ['ICON', 'BOY', 'GIRL1', 'GIRL2']);
+  assert.deepEqual(s.categories.map(c => c.key), ['ICON', 'GIRL1', 'BOY', 'GIRL2']);
   assert.equal(s.mode, 'shuffle');
 });
 test(`${id()} kids ICON: one shuffle places all 4 icon boys`, async () => {
@@ -178,17 +178,17 @@ test(`${id()} kids ICON: one shuffle places all 4 icon boys`, async () => {
   assertInvariants(s);
   await finalize(ctx, 'kids');
 });
-for (const cat of ['BOY', 'GIRL1', 'GIRL2']) {
+for (const cat of ['GIRL1', 'BOY', 'GIRL2']) {
   for (let team = 1; team <= 4; team++) {
     test(`${id()} kids ${cat}: pick ${team} goes to Team ${team} from the right list`, async () => {
       const before = await state(ctx, 'kids');
       assert.equal(before.current, cat); assert.equal(before.currentTeam, team);
-      const expectPool = cat === 'BOY' ? 5 - team : cat === 'GIRL1' ? 9 - team : 5 - team;
+      const expectPool = 5 - team;
       assert.equal(before.remaining.length, expectPool);
       assert.equal((await raw(ctx, '/kids/draw', { method: 'POST', body: { category: cat, team } })).status, 200);
       const s = await state(ctx, 'kids');
       const got = s.teams[team - 1].players[cat];
-      assert.match(got, cat === 'BOY' ? /^Boy/ : /^Girl/);
+      assert.match(got, cat === 'BOY' ? /^Boy/ : cat === 'GIRL1' ? /^Girl Player/ : /^Girlb/);
       assertInvariants(s);
     });
     test(`${id()} kids ${cat}: stale request for team ${team} after it was drawn -> 409`, async () => {
@@ -197,7 +197,7 @@ for (const cat of ['BOY', 'GIRL1', 'GIRL2']) {
   }
   test(`${id()} kids ${cat}: finalize`, async () => { await finalize(ctx, 'kids'); });
 }
-test(`${id()} kids: completed, each team = Icon Boy + Boy + 2 different girls`, async () => {
+test(`${id()} kids: completed, each team = one player from each of the 4 lists`, async () => {
   const s = await state(ctx, 'kids');
   assert.equal(s.status, 'COMPLETED');
   for (const t of s.teams) {
@@ -205,30 +205,28 @@ test(`${id()} kids: completed, each team = Icon Boy + Boy + 2 different girls`, 
     assert.match(t.players.GIRL1, /^Girl/); assert.match(t.players.GIRL2, /^Girl/);
     assert.notEqual(t.players.GIRL1, t.players.GIRL2);
   }
-  assert.deepEqual(s.teams.flatMap(t => [t.players.GIRL1, t.players.GIRL2]).sort(), names('Girl', 8).sort());
+  assert.deepEqual(s.teams.map(t => t.players.GIRL1).sort(), names('Girl', 4).sort());
+  assert.deepEqual(s.teams.map(t => t.players.GIRL2).sort(), names('Girlb', 4).sort());
 });
-test(`${id()} kids: Girls list must have exactly 8 before Girl 1 (7 refused)`, async () => {
-  await fresh(ctx, { ev: 'kids', lists: { ICON: names('Icon', 4), BOY: names('Boy', 4), GIRL: names('Girl', 7) } });
+test(`${id()} kids: Girl Cat 2 list must have exactly 4 before its round (3 refused)`, async () => {
+  await fresh(ctx, { ev: 'kids', lists: { ICON: names('Icon', 4), GIRL1: names('Girl', 4), BOY: names('Boy', 4), GIRL2: names('Girlb', 3) } });
   await spin(ctx, 'kids'); await finalize(ctx, 'kids');
-  for (let k = 0; k < 4; k++) await spin(ctx, 'kids');
-  await finalize(ctx, 'kids');
+  for (const _ of [1, 2]) { for (let k = 0; k < 4; k++) await spin(ctx, 'kids'); await finalize(ctx, 'kids'); }
   assert.equal((await spin(ctx, 'kids')).status, 400);
 });
-test(`${id()} kids: Girls list 9 also refused`, async () => {
-  await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: { GIRL: names('Girl', 9) } } });
+test(`${id()} kids: Girl Cat 2 list of 5 also refused`, async () => {
+  await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: { GIRL2: names('Girlb', 5) } } });
   assert.equal((await spin(ctx, 'kids')).status, 400);
 });
-test(`${id()} kids: undo the only Girl 1 pick reopens the list for editing`, async () => {
-  await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: { GIRL: names('Girl', 8) } } });
+test(`${id()} kids: undo the only Girl Cat 2 pick reopens its list for editing`, async () => {
+  await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: { GIRL2: names('Girlb', 4) } } });
   assert.equal((await spin(ctx, 'kids')).status, 200);
-  assert.equal((await ok(ctx, '/kids/admin')).editable.GIRL, false);
+  assert.equal((await ok(ctx, '/kids/admin')).editable.GIRL2, false);
   const s = await state(ctx, 'kids');
   await ok(ctx, '/kids/undo', { method: 'POST', body: { actionId: s.last.actionId } });
-  assert.equal((await ok(ctx, '/kids/admin')).editable.GIRL, true);
+  assert.equal((await ok(ctx, '/kids/admin')).editable.GIRL2, true);
 });
-test(`${id()} kids: Girl 2 is ready once Girl 1 is finalized (uses the 4 left)`, async () => {
-  for (let k = 0; k < 4; k++) await spin(ctx, 'kids');
-  await finalize(ctx, 'kids');
+test(`${id()} kids: Girl Cat 2 is ready with its own 4 names`, async () => {
   const s = await state(ctx, 'kids');
   assert.equal(s.current, 'GIRL2');
   assert.equal(s.categories.find(c => c.key === 'GIRL2').ready, true);

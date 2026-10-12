@@ -142,7 +142,7 @@ for (const [label, categories, code] of MAIN_CATS) {
     assert.equal((await raw(ctx, '/tournament', { method: 'PATCH', body: { categories } })).status, code);
   });
 }
-for (const [label, categories] of [['valid-looking', ['ICON', 'BOY', 'GIRL1', 'GIRL2']], ['reordered', ['BOY', 'ICON', 'GIRL1', 'GIRL2']], ['main keys', ['A']]]) {
+for (const [label, categories] of [['valid-looking', ['ICON', 'GIRL1', 'BOY', 'GIRL2']], ['reordered', ['BOY', 'ICON', 'GIRL1', 'GIRL2']], ['main keys', ['A']]]) {
   test(`${id()} categories (kids): ${label} -> 409 fixed format`, async () => {
     assert.equal((await raw(ctx, '/kids/tournament', { method: 'PATCH', body: { categories } })).status, 409);
   });
@@ -152,7 +152,7 @@ for (const [label, categories] of [['valid-looking', ['ICON', 'BOY', 'GIRL1', 'G
 const n28 = (p, k = 28) => Array.from({ length: k }, (_, i) => `${p} ${i + 1}`);
 const LISTS = [
   ['lists missing', {}, 400], ['lists null', { lists: null }, 400], ['lists array', { lists: [] }, 400],
-  ['unknown category', { lists: { Z: ['a'] } }, 400], ['kids list in main', { lists: { GIRL: ['a'] } }, 400],
+  ['unknown category', { lists: { Z: ['a'] } }, 400], ['kids list in main', { lists: { GIRL1: ['a'] } }, 400],
   ['list not an array', { lists: { A: 'x' } }, 400], ['201 names', { lists: { A: n28('P', 201) } }, 400],
   ['200 names ok', { lists: { A: n28('P', 200) } }, 200], ['name 61 chars', { lists: { A: ['x'.repeat(61)] } }, 400],
   ['name 60 chars', { lists: { A: ['y'.repeat(60)] } }, 200], ['duplicate in list', { lists: { A: ['Rahul', 'Rahul'] } }, 400],
@@ -175,9 +175,9 @@ test(`${id()} players: a rejected save leaves the previous list intact`, async (
   assert.equal((await ok(ctx, '/admin')).lists.WOMEN.length, 28);
 });
 const KIDS_LISTS = [
-  ['main list in kids', { lists: { A: ['x'] } }, 400], ['round key instead of list', { lists: { GIRL1: ['x'] } }, 400],
-  ['icon 4', { lists: { ICON: n28('I', 4) } }, 200], ['boy 4', { lists: { BOY: n28('B', 4) } }, 200], ['girls 8', { lists: { GIRL: n28('G', 8) } }, 200],
-  ['girl duplicates a boy', { lists: { GIRL: ['B 1'] } }, 400],
+  ['main list in kids', { lists: { A: ['x'] } }, 400], ['old shared girls list', { lists: { GIRL: ['x'] } }, 400],
+  ['icon 4', { lists: { ICON: n28('I', 4) } }, 200], ['boy 4', { lists: { BOY: n28('B', 4) } }, 200], ['girl cat 1 4', { lists: { GIRL1: n28('G', 4) } }, 200], ['girl cat 2 4', { lists: { GIRL2: n28('H', 4) } }, 200],
+  ['girl duplicates a boy', { lists: { GIRL1: ['B 1'] } }, 400], ['girl cat 2 duplicates girl cat 1', { lists: { GIRL2: ['G 1'] } }, 400],
 ];
 for (const [label, body, code] of KIDS_LISTS) {
   test(`${id()} players (kids DRAFT): ${label} -> ${code}`, async () => {

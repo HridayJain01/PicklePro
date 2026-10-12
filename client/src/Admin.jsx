@@ -10,7 +10,7 @@ import { ConnectionBanner, Header, Steps } from './Live.jsx';
 import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
 
-// Labels come from the server per event (main: A–D, kids: Icon Boy / Boy / Girls).
+// Labels come from the server per event (main: A–D, kids: Boy Cat 1 (Icon) / Girl Cat 1 / Boy Cat 2 / Girl Cat 2).
 const labelOf = (data, key) => data.pools.find(p => p.key === key)?.label ?? data.available.find(c => c.key === key)?.label ?? key;
 const toNames = text => text.split('\n').map(s => s.trim()).filter(Boolean);
 
@@ -286,7 +286,7 @@ function Setup({ state, data, run, busy, refresh }) {
             <ol>
               {state.categories.map(c => <li key={c.key}>{c.label}{c.shuffle && <span className="hint"> · shuffled in one go</span>}</li>)}
             </ol>
-            <p className="hint">Each team: 1 Icon Boy + 1 Boy + 2 Girls. Girl 1 and Girl 2 are both drawn from the one Girls list.</p>
+            <p className="hint">Each team gets one player from each list: Boy Cat 1 (Icon, shuffled), Girl Cat 1, Boy Cat 2, Girl Cat 2 — drawn in that order. 4 names per list.</p>
           </div>
         ) : (
         <fieldset>

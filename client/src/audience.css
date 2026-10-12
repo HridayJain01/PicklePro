@@ -10,32 +10,33 @@
 .layout-audience { padding-bottom: 24px; }
 .teams-section { min-width: 0; }
 
-/* ---------- SP Tech: slim top strip (credit + call chips + WhatsApp pill) ---------- */
+/* ---------- SP Tech: quiet top credit (tap to show contacts) ---------- */
 .credit-strip {
-  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
-  padding: 6px 12px; background: rgb(11 31 82 / 0.9); border-bottom: 1px solid rgb(108 192 74 / 0.3); font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 8px;
+  padding: 3px 10px; font-size: 0.72rem; opacity: 0.85;
 }
-.credit-id { display: inline-flex; align-items: center; gap: 6px; }
-.credit-label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.66rem; }
-.credit-contacts { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.credit-id { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 2px 4px; color: inherit; cursor: pointer; font: inherit; }
+.credit-label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.6rem; }
+.credit-contacts { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 100%; }
 .credit-chip {
-  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 10px; border-radius: 999px; text-decoration: none;
-  border: 1px solid rgb(255 255 255 / 0.22); color: var(--line); font-weight: 700; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 3px 9px; border-radius: 999px; text-decoration: none;
+  border: 1px solid rgb(255 255 255 / 0.18); color: var(--line); font-weight: 700; white-space: nowrap;
 }
 .credit-num { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .credit-chip:hover { border-color: var(--paddle-green); }
-.credit-chip:focus-visible, .wa-pill:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
-.wa-pill {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px 4px 8px; border-radius: 999px;
-  text-decoration: none; font-weight: 800; font-size: 0.8rem; white-space: nowrap;
-  background: #1fb257; color: #fff; transition: background-color 0.15s, transform 0.08s;
+.credit-id:focus-visible, .credit-chip:focus-visible, .wa-pill:focus-visible, .wa-dot:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+.wa-dot {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #1fb257; color: #fff;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.wa-pill svg { width: 18px; height: 18px; }
-.wa-pill:hover { background: #17a04c; }
-.wa-pill:active { transform: scale(0.97); background: #138a40; }
-@media (max-width: 330px) { .credit-num { display: none; } }
-@media (max-width: 520px) { .credit-strip { gap: 6px 10px; padding: 6px 8px; } .credit-contacts { order: -1; width: 100%; } .credit-chip { padding: 4px 8px; gap: 4px; } }
+.wa-dot svg { width: 16px; height: 16px; }
+.wa-pill {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 10px 3px 7px; border-radius: 999px;
+  text-decoration: none; font-weight: 700; font-size: 0.75rem; white-space: nowrap;
+  background: #1fb257; color: #fff; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.wa-pill svg { width: 15px; height: 15px; }
+.wa-pill:hover, .wa-dot:hover { background: #17a04c; }
 
 .sp-mark { position: relative; display: inline-flex; align-items: baseline; gap: 0.18em; font: 900 2.6rem/1 var(--body); letter-spacing: -0.02em; color: #fff; padding-top: 0.25em; }
 .sp-mark b { font-style: italic; font-weight: 900; }
@@ -43,21 +44,19 @@
 .sp-swoosh { position: absolute; left: -0.1em; top: -0.05em; width: 1.6em; height: auto; }
 .sp-mark-small { font-size: 1.05rem; padding-top: 0.2em; }
 
-/* ---------- SP Tech: bottom credit + contacts (after all teams) ---------- */
+/* ---------- SP Tech: compact bottom credit ---------- */
 .brand-footer {
-  display: grid; justify-items: center; gap: 12px; text-align: center;
-  margin: 8px auto calc(88px + env(safe-area-inset-bottom)); padding: 22px 16px 18px; width: min(720px, calc(100% - 32px));
-  border-radius: 16px; background: var(--net); border: 1px solid rgb(108 192 74 / 0.3);
+  display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 0.78rem; color: var(--muted);
+  margin: 8px auto calc(80px + env(safe-area-inset-bottom)); padding: 10px 12px; width: min(720px, calc(100% - 32px));
+  border-top: 1px solid rgb(255 255 255 / 0.1);
 }
-.brand-tagline { margin: 0; font-weight: 700; color: var(--line); }
+.brand-footer-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }
+.brand-footer-kicker { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.62rem; }
+.brand-tagline { font-weight: 600; color: var(--muted); }
 .brand-tagline em { font-style: normal; color: var(--paddle-green); }
-.brand-footer .wa-pill { font-size: 0.9rem; min-height: 40px; padding: 6px 16px 6px 10px; }
-.brand-footer-kicker { margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.72rem; }
-.brand-people { list-style: none; margin: 4px 0 0; padding: 0; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.brand-person {
-  display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; text-decoration: none; color: var(--line); text-align: left; min-height: 64px;
-  background: rgb(255 255 255 / 0.05); border: 1px solid rgb(255 255 255 / 0.14); transition: border-color 0.15s;
-}
+.brand-person { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; color: var(--line); text-decoration: none; font-weight: 600; }
+.brand-person svg { width: 13px; height: 13px; }
+
 .brand-person:hover { border-color: var(--paddle-green); }
 .brand-person:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
 .brand-person-name { font-weight: 800; }
@@ -232,9 +231,9 @@
 .join button:active, .predict-open:active { transform: scale(0.98); }
 
 /* ---------- Bigger ICC logo in the header ---------- */
-.topbar .brand-logo { width: 68px; height: 68px; }
-@media (min-width: 760px) { .topbar .brand-logo { width: 84px; height: 84px; } }
-@media (max-width: 360px) { .topbar .brand-logo { width: 58px; height: 58px; } }
+.topbar .brand-logo { width: 88px; height: 88px; }
+@media (min-width: 760px) { .topbar .brand-logo { width: 112px; height: 112px; } }
+@media (max-width: 360px) { .topbar .brand-logo { width: 72px; height: 72px; } }
 .topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }
 
 /* ---------- Header: "👀 N watching" sits under LIVE, never against the title ---------- */

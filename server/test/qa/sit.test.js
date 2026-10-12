@@ -101,9 +101,9 @@ test(`${id()} captain data: the first shuffle round is flagged so screens can sh
   const k = await state(ctx, 'kids');
   assert.equal(k.categories.find(c => c.key === 'ICON').shuffle, true);
 });
-test(`${id()} short codes: team cards get distinct codes (kids G1 vs G2)`, async () => {
+test(`${id()} short codes: team cards get distinct codes (kids B1 G1 B2 G2)`, async () => {
   const k = await state(ctx, 'kids');
-  assert.deepEqual(k.categories.map(c => c.short), ['IB', 'B', 'G1', 'G2']);
+  assert.deepEqual(k.categories.map(c => c.short), ['B1', 'G1', 'B2', 'G2']);
 });
 
 // ---------- predictions ----------
@@ -185,10 +185,10 @@ test(`${id()} predict: kids guesses go to the kids leaderboard only`, async () =
   await fresh(ctx, { ev: 'kids' });
   await spin(ctx, 'kids'); await finalize(ctx, 'kids');
   const k = await state(ctx, 'kids');
-  await ok(ctx, '/kids/guess', { method: 'POST', auth: false, body: { voterId: 'voter-kid-sit1', nickname: 'Kid', category: 'BOY', team: 1, name: k.remaining[0] } });
+  await ok(ctx, '/kids/guess', { method: 'POST', auth: false, body: { voterId: 'voter-kid-sit1', nickname: 'Kid', category: 'GIRL1', team: 1, name: k.remaining[0] } });
   await spin(ctx, 'kids');
   assert.equal((await ok(ctx, '/kids/leaderboard', { auth: false })).last.total, 1);
-  assert.notEqual((await ok(ctx, '/leaderboard', { auth: false })).last?.category, 'BOY');
+  assert.notEqual((await ok(ctx, '/leaderboard', { auth: false })).last?.category, 'GIRL1');
 });
 test(`${id()} predict: per-viewer rate limit -> 429 after 12 attempts in a minute (other viewers unaffected)`, async () => {
   const s = await state(ctx, 'kids');
@@ -270,8 +270,8 @@ test(`${id()} import: XLSX through the API`, async () => {
   await ok(ctx, '/players', { method: 'PUT', body: { lists } });
 });
 test(`${id()} import: kids file through the kids API`, async () => {
-  const { lists } = await ok(ctx, '/kids/players/import', { method: 'POST', body: { filename: 'k.csv', data: b64('Icon Boy,Boys,Girls\nI1,B1,G1\n') } });
-  assert.deepEqual(Object.keys(lists).sort(), ['BOY', 'GIRL', 'ICON']);
+  const { lists } = await ok(ctx, '/kids/players/import', { method: 'POST', body: { filename: 'k.csv', data: b64('Boy Cat 1,Girl Cat 1,Boy Cat 2,Girl Cat 2\nI1,G1,B1,H1\n') } });
+  assert.deepEqual(Object.keys(lists).sort(), ['BOY', 'GIRL1', 'GIRL2', 'ICON']);
 });
 test(`${id()} import: anonymous import -> 401`, async () => {
   assert.equal((await raw(ctx, '/players/import', { method: 'POST', body: { filename: 'p.csv', data: b64('A\nX') }, auth: false })).status, 401);

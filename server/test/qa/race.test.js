@@ -149,7 +149,7 @@ test(`${id()} 10 kids + 10 main draw requests interleaved -> one pick in each ev
   await spin(ctx, 'kids'); await finalize(ctx, 'kids');
   const rs = await burst(20, i => (i % 2
     ? raw(ctx, '/draw', { method: 'POST', body: { category: 'WOMEN', team: 1 } })
-    : raw(ctx, '/kids/draw', { method: 'POST', body: { category: 'BOY', team: 1 } })));
+    : raw(ctx, '/kids/draw', { method: 'POST', body: { category: 'GIRL1', team: 1 } })));
   assert.equal(rs.filter(r => r.status === 200).length, 2);
   assert.equal((await state(ctx)).currentTeam, 2);
   assert.equal((await state(ctx, 'kids')).currentTeam, 2);

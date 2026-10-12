@@ -232,6 +232,11 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-12 — Kids split categories, real slot sound, quieter branding
+- Kids draw now has four separate lists drawn in this order: Boy Cat 1 (Icon, shuffled) → Girl Cat 1 → Boy Cat 2 → Girl Cat 2, 4 names each (was one shared Girls list of 8). Keys stay ICON / GIRL1 / BOY / GIRL2; a kids tournament still in DRAFT is switched to the new order automatically. Import headers: "Boy Cat 1", "Girl Cat 1", "Boy Cat 2", "Girl Cat 2" (old "Icon Boy" / "Boy" still work). Card codes B1 G1 B2 G2.
+- Slot sound: the reel no longer uses filtered noise (the "shh" hiss). Each symbol box passing the window is a pitched mechanical knock (max 16/s), lever is a ratchet, softer motor hum; bells and coins unchanged.
+- Branding: top strip is one quiet line "Powered by SP Tech" + small WhatsApp icon (tap the credit to show the call buttons); footer is a compact two-line credit. ICC logo bigger (88 / 112 / 72 px).
+
 ### 2026-10-12 — QA: 1,009 automated scenarios, fixes, load testing (branch `qa-suite`)
 - New suites in `server/test/qa/` (unit 139, API 346, draw engine 259, race 30, DB 45, security 89, SIT 78) + original 23 = 1,009, all passing; `npm test` now runs only `test/**/*.test.js`. Docs: `TEST_PLAN.md`, `TEST_CASES.md` (generated from the real run), `TEST_RESULTS.md`.
 - Fixes: Unicode-NFC + invisible-character stripping in `cleanName` (look-alike duplicate names), per-route host auth (unknown API paths now 404), text-only prediction nicknames/names, cached `GET /state` (≈5.5× throughput) and per-change leaderboard cache, client badge polling 60 s when visible + leaderboard fetch jitter.

@@ -78,8 +78,14 @@ const defaultsFor = ev => {
 };
 
 export async function activeTournament(ev = 'main') {
-  return (await Tournament.findOne(eventQuery(ev)).sort({ _id: -1 }))
-    ?? Tournament.create({ name: eventOf(ev) === 'kids' ? 'Kids Team Draw' : 'Team Draw', ...defaultsFor(ev) });
+  const t = await Tournament.findOne(eventQuery(ev)).sort({ _id: -1 });
+  // A fixed-format event not yet started always uses the current format (e.g. new kids round order).
+  const e = EVENTS[eventOf(ev)];
+  if (t && e.fixed && t.status === 'DRAFT' && t.categories.join() !== e.defaults.join()) {
+    t.categories = e.defaults;
+    await t.save();
+  }
+  return t ?? Tournament.create({ name: eventOf(ev) === 'kids' ? 'Kids Team Draw' : 'Team Draw', ...defaultsFor(ev) });
 }
 
 // `tournamentId` reads an archived tournament of this event; by default it's the active one.
@@ -329,7 +335,7 @@ export const savePlayers = ({ lists } = {}, ev = 'main') => locked(async () => {
 export const createTournament = ({ name } = {}, ev = 'main') => locked(async () => {
   const s = await snapshot(undefined, ev);
   requireIdle(s);
-  await Tournament.create({ ...defaultsFor(ev), name: requireName(name), categories: s.t.categories, spinMs: s.t.spinMs });
+  await Tournament.create({ ...defaultsFor(ev), name: requireName(name), categories: EVENTS[eventOf(ev)].fixed ? EVENTS[eventOf(ev)].defaults : s.t.categories, spinMs: s.t.spinMs });
   await broadcast(ev);
 });
 

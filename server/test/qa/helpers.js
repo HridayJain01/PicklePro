@@ -70,7 +70,7 @@ export async function fresh(ctx, { ev = 'main', categories, spinMs = 0, start = 
     await ok(ctx, '/players', { method: 'PUT', body: { lists: lists ?? Object.fromEntries(cats.filter(c => MAIN_POOLS.includes(c)).map(c => [c, names(c, 28)])) } });
   } else {
     await ok(ctx, '/kids/tournament', { method: 'PATCH', body: { spinMs } });
-    await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: lists ?? { ICON: names('Icon', 4), BOY: names('Boy', 4), GIRL: names('Girl', 8) } } });
+    await ok(ctx, '/kids/players', { method: 'PUT', body: { lists: lists ?? { ICON: names('Icon', 4), GIRL1: names('Girl', 4), BOY: names('Boy', 4), GIRL2: names('Girlb', 4) } } });
   }
   if (start) await ok(ctx, `${p}/start`, { method: 'POST' });
   return state(ctx, ev);

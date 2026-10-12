@@ -198,13 +198,32 @@ const track = stop => {
 // lever spring + gear catch → motor hum and reel mechanism whirr, slowing into distinct clacks →
 // reel thunk → ringing bell and a coin cascade.
 
+// One reel symbol box knocking past the stop arm: a hard, short, pitched tick with a small
+// wooden body thump. No noise source, so it never sounds like a "shh" hiss.
+function knock(a, at, loud, pitch = 1) {
+  const parts = [[2400 * pitch, 0.012, loud], [820 * pitch, 0.03, loud * 0.6], [190 * pitch, 0.05, loud * 0.5]];
+  for (const [f, len, g0] of parts) {
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = f > 1000 ? 'square' : 'triangle';
+    o.frequency.setValueAtTime(f, at);
+    o.frequency.exponentialRampToValueAtTime(f * 0.7, at + len);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(g0, at + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + len + 0.02);
+  }
+}
+
 // Lever pull, purely mechanical: the arm's spring stretching, then the gears catching (no beeps).
 export function leverPull() {
-  noiseShape({ type: 'bandpass', freq: 900, q: 6, env: [[20, 0.05], [160, 0.06], [220, 0.0001]] }); // spring
-  later(() => {
-    tone({ freq: 95, to: 55, type: 'triangle', ms: 160, gain: 0.2 }); // gear catch
-    noiseShape({ type: 'lowpass', freq: 380, env: [[3, 0.2], [130, 0.0001]] });
-  }, 200);
+  const a = ready();
+  if (!a) return;
+  // Ratchet: the lever arm clicking down through its teeth, then the heavy catch.
+  for (let i = 0; i < 6; i++) knock(a, a.currentTime + i * 0.035, 0.05, 0.8 + i * 0.03);
+  later(() => tone({ freq: 95, to: 55, type: 'triangle', ms: 160, gain: 0.22 }), 220); // gear catch
 }
 
 // Mechanical reels. A low motor hum plus the reel mechanism: a click every time a symbol passes
@@ -220,7 +239,7 @@ export function slotReel() {
   // Motor hum: a low, slightly rough drone through a low-pass, pitch following the speed.
   const motor = a.createOscillator();
   const motor2 = a.createOscillator();
-  motor.type = 'sawtooth';
+  motor.type = 'sine';
   motor2.type = 'triangle';
   motor.frequency.value = 58;
   motor2.frequency.value = 87;
@@ -230,7 +249,7 @@ export function slotReel() {
   lp.Q.value = 0.7;
   const hum = a.createGain();
   hum.gain.setValueAtTime(0.0001, t);
-  hum.gain.linearRampToValueAtTime(0.07, t + 0.45);
+  hum.gain.linearRampToValueAtTime(0.035, t + 0.45);
   motor.connect(lp);
   motor2.connect(lp);
   lp.connect(hum).connect(master);
@@ -241,27 +260,14 @@ export function slotReel() {
   let speed = 13;
   let nextAt = t + 0.3;
   let stopped = false;
-  const click = (at, loud) => {
-    const src = a.createBufferSource();
-    src.buffer = noiseBuffer(a);
-    const bp = a.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 1500;
-    bp.Q.value = 2.5;
-    const g = a.createGain();
-    g.gain.setValueAtTime(0.0001, at);
-    g.gain.linearRampToValueAtTime(loud, at + 0.002);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
-    src.connect(bp).connect(g).connect(master);
-    src.start(at, Math.random() * 1.5, 0.04);
-  };
   const schedule = () => {
     if (stopped) return;
-    const perSec = Math.max(2, speed * 2.3); // two pawl clicks per symbol
-    // Fast = soft whirr; slow = firmer individual clacks.
-    const loud = speed > 6 ? 0.025 : 0.05;
+    // One knock per symbol box passing the window; capped at 16/s so it is a clatter of boxes,
+    // never a hiss. Fast = lighter knocks, slow = heavy individual clacks.
+    const perSec = Math.min(16, Math.max(2, speed * 1.2));
+    const loud = speed > 6 ? 0.04 : 0.07;
     while (nextAt < a.currentTime + 0.1) {
-      click(nextAt, loud);
+      knock(a, nextAt, loud, 0.95 + Math.random() * 0.1);
       nextAt += 1 / perSec;
     }
   };
@@ -290,13 +296,13 @@ export function slotReel() {
       motor.frequency.setTargetAtTime(38 + 28 * s, n, 0.1);
       motor2.frequency.setTargetAtTime(57 + 42 * s, n, 0.1);
       lp.frequency.setTargetAtTime(260 + 260 * s, n, 0.1);
-      hum.gain.setTargetAtTime(0.025 + 0.05 * s, n, 0.12);
+      hum.gain.setTargetAtTime(0.012 + 0.025 * s, n, 0.12);
     },
     // A symbol locking past the window in the final crawl: a solid mechanical clack.
     clunk() {
       if (stopped) return;
+      knock(a, a.currentTime, 0.1, 0.75);
       tone({ freq: 210, to: 120, type: 'triangle', ms: 60, gain: 0.1 });
-      noiseShape({ type: 'bandpass', freq: 1200, q: 3, env: [[2, 0.07], [35, 0.0001]] });
     },
     stop: untrack,
   };
@@ -304,8 +310,9 @@ export function slotReel() {
 
 // The reel stops on the winner: heavy thunk, then ringing jackpot bells and a coin cascade.
 export function jackpot() {
-  tone({ freq: 120, to: 60, type: 'square', ms: 160, gain: 0.2 });
-  noiseShape({ type: 'lowpass', freq: 450, env: [[3, 0.22], [140, 0.0001]] });
+  const a = ready();
+  if (a) knock(a, a.currentTime, 0.12, 0.6);
+  tone({ freq: 120, to: 60, type: 'triangle', ms: 180, gain: 0.25 });
   // Ringing bells: two bright pitches alternating fast, like a slot's win bell.
   for (let i = 0; i < 18; i++) {
     const f = i % 2 ? 2093 : 1760;
@@ -327,7 +334,7 @@ export function jackpot() {
 // Near-miss: the reel shuddering against the pawl before it settles (mechanical, no beep).
 export function nearMiss() {
   for (let i = 0; i < 3; i++) {
-    later(() => noiseShape({ type: 'bandpass', freq: 1100, q: 3, env: [[2, 0.06], [40, 0.0001]] }), i * 90);
+    later(() => { const a = ready(); if (a) knock(a, a.currentTime, 0.07, 0.85); }, i * 90);
   }
   tone({ freq: 140, to: 110, type: 'triangle', ms: 260, gain: 0.06 });
 }

@@ -41,9 +41,12 @@ export async function exportWorkbook(tournamentId, ev = 'main') {
 // Header cell -> category: "A", "A Player", "Category B", "Women", "Ladies", ...
 export function headerCategory(text) {
   const h = String(text).toLowerCase().replace(/[^a-z]/g, '');
-  // Kids lists: "Icon Boy" / "Icon", "Boy" / "Boys", "Girl" / "Girls".
-  if (/^icon/.test(h)) return 'ICON';
-  if (/^boys?(players?)?$/.test(h)) return 'BOY';
+  // Kids lists: "Boy Cat 1" / "Icon Boy", "Boy Cat 2" / "Boy", "Girl Cat 1", "Girl Cat 2".
+  const k = String(text).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (/^icon/.test(h) || /^boys?(cat|category)?(1|one)/.test(k)) return 'ICON';
+  if (/^girls?(cat|category)?(1|one)/.test(k)) return 'GIRL1';
+  if (/^girls?(cat|category)?(2|two)/.test(k)) return 'GIRL2';
+  if (/^boys?(cat|category)?(2|two)?(players?)?$/.test(k)) return 'BOY';
   if (/^girls?(players?)?$/.test(h)) return 'GIRL';
   if (/^(wom[ae]n|ladies|w$)/.test(h)) return 'WOMEN';
   const letter = h.match(/^(?:category|cat|group)?([abcd])(?:players?|category|cat|group)?$/)?.[1];

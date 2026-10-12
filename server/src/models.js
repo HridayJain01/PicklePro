@@ -4,18 +4,18 @@ const { Schema, model } = mongoose;
 
 export const TEAM_COUNT = 28;
 
-// Draw categories (rounds) and their labels. Most rounds draw from a player list of the same
-// key; GIRL1 and GIRL2 both draw from the one GIRL list (2 girls per kids team).
+// Draw categories (rounds) and their labels. Each round draws from the player list of the same key.
+// Kids: Boy Cat 1 (Icon, key ICON), Girl Cat 1, Boy Cat 2 (key BOY), Girl Cat 2 — four separate lists.
+// GIRL is the old shared girls list, kept only so older tournaments still load.
 export const LABELS = {
   A: 'A', WOMEN: 'Women', B: 'B', C: 'C', D: 'D',
-  ICON: 'Icon Boy', BOY: 'Boy', GIRL1: 'Girl 1', GIRL2: 'Girl 2', GIRL: 'Girls',
+  ICON: 'Boy Cat 1 (Icon)', BOY: 'Boy Cat 2', GIRL1: 'Girl Cat 1', GIRL2: 'Girl Cat 2', GIRL: 'Girls (old list)',
 };
 // Short codes for team cards (Girl 1 / Girl 2 must stay distinguishable).
-export const SHORT = { A: 'A', WOMEN: 'W', B: 'B', C: 'C', D: 'D', ICON: 'IB', BOY: 'B', GIRL1: 'G1', GIRL2: 'G2' };
+export const SHORT = { A: 'A', WOMEN: 'W', B: 'B', C: 'C', D: 'D', ICON: 'B1', BOY: 'B2', GIRL1: 'G1', GIRL2: 'G2' };
 export const ALL_CATEGORIES = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2'];
-export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL'];
-const POOL = { GIRL1: 'GIRL', GIRL2: 'GIRL' };
-export const poolOf = category => POOL[category] ?? category;
+export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2', 'GIRL'];
+export const poolOf = category => category;
 // Shuffle rounds put the whole list onto every team in one action (seeds / captains).
 export const SHUFFLE = new Set(['A', 'ICON']);
 
@@ -27,11 +27,11 @@ export const EVENTS = {
     defaults: ['A', 'WOMEN', 'B', 'C'],
     fixed: false,
   },
-  // Kids: 4 teams of 2 boys + 2 girls; exactly one Icon Boy per team.
+  // Kids: 4 teams of 2 boys + 2 girls (one from each category list); Boy Cat 1 is the Icon shuffle.
   kids: {
     teamCount: 4,
-    available: ['ICON', 'BOY', 'GIRL1', 'GIRL2'],
-    defaults: ['ICON', 'BOY', 'GIRL1', 'GIRL2'],
+    available: ['ICON', 'GIRL1', 'BOY', 'GIRL2'],
+    defaults: ['ICON', 'GIRL1', 'BOY', 'GIRL2'],
     fixed: true,
   },
 };

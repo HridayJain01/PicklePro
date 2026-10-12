@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 // SP Tech branding: a slim top strip and a bottom credit. Both read the same contact list below,
 // so the numbers can never disagree.
 const PEOPLE = [
@@ -39,61 +41,63 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-// Compact WhatsApp pill: small, green, easy to tap; opens the enquiry chat with Sidh.
-function WhatsAppPill({ label = 'WhatsApp us' }) {
+// WhatsApp: a small green circle (icon only), or a small pill when given a label.
+function WhatsAppPill({ label }) {
   return (
     <a
-      className="wa-pill"
+      className={label ? 'wa-pill' : 'wa-dot'}
       href={WHATSAPP}
       target="_blank"
       rel="noopener noreferrer"
+      title="WhatsApp SP Tech"
       aria-label="Message SP Tech on WhatsApp about website and app development (opens WhatsApp)"
     >
       <WhatsAppIcon />
-      <span>{label}</span>
+      {label && <span>{label}</span>}
     </a>
   );
 }
 
-// Top: one slim line — SP Tech credit, tap-to-call Sidh and Pinkesh, WhatsApp pill. Wraps into
-// two short rows on phones instead of squeezing.
+// Top: a quiet one-line credit so the event stays the star: "Powered by SP Tech" and a small
+// WhatsApp icon. Tapping the credit reveals the two call buttons.
 export function CreditStrip() {
+  const [open, setOpen] = useState(false);
   return (
     <div className="credit-strip">
-      <span className="credit-id">
-        <span className="credit-label">By</span>
+      <button type="button" className="credit-id" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <span className="credit-label">Powered by</span>
         <Wordmark small />
-      </span>
-      <span className="credit-contacts">
-        {PEOPLE.map(p => (
-          <a key={p.tel} className="credit-chip" href={`tel:${p.tel}`} aria-label={`Call ${p.name} on ${p.display}`}>
-            <PhoneIcon /> {p.short} <span className="credit-num">{p.display}</span>
-          </a>
-        ))}
-      </span>
+      </button>
       <WhatsAppPill />
+      {open && (
+        <span className="credit-contacts">
+          {PEOPLE.map(p => (
+            <a key={p.tel} className="credit-chip" href={`tel:${p.tel}`} aria-label={`Call ${p.name} on ${p.display}`}>
+              <PhoneIcon /> {p.short} <span className="credit-num">{p.display}</span>
+            </a>
+          ))}
+        </span>
+      )}
     </div>
   );
 }
 
-// Bottom of the page (after all teams): credit, tagline, contact cards and the WhatsApp pill.
+// Bottom of the page (after all teams): a compact two-line credit.
 export function BrandFooter() {
   return (
     <footer className="brand-footer">
-      <p className="brand-footer-kicker">Built &amp; developed by</p>
-      <Wordmark />
-      <p className="brand-tagline">Turning Ideas into <em>Experiences</em></p>
-      <ul className="brand-people">
+      <p className="brand-footer-line">
+        <span className="brand-footer-kicker">App by</span> <Wordmark small />
+        <span className="brand-tagline">Turning Ideas into <em>Experiences</em></span>
+      </p>
+      <p className="brand-footer-line">
         {PEOPLE.map(p => (
-          <li key={p.tel}>
-            <a className="brand-person" href={`tel:${p.tel}`} aria-label={`Call ${p.name} on ${p.display}`}>
-              <span className="brand-person-name">{p.name}</span>
-              <span className="brand-person-tel"><PhoneIcon /> {p.display}</span>
-            </a>
-          </li>
+          <a key={p.tel} className="brand-person" href={`tel:${p.tel}`} aria-label={`Call ${p.name} on ${p.display}`}>
+            <PhoneIcon /> {p.short} {p.display}
+          </a>
         ))}
-      </ul>
-      <WhatsAppPill label="For IT projects, WhatsApp us" />
+        <WhatsAppPill label="WhatsApp" />
+      </p>
     </footer>
   );
 }

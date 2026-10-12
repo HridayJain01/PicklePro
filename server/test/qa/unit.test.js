@@ -90,7 +90,7 @@ const HEADERS = [
   ['A', 'A'], ['a', 'A'], ['A Player', 'A'], ['A Players', 'A'], ['Category A', 'A'], ['Cat B', 'B'], ['Group C', 'C'],
   ['  d  ', 'D'], ['B-Players', 'B'], ['C_player', 'C'], ['Women', 'WOMEN'], ['WOMEN', 'WOMEN'], ['woman', 'WOMEN'],
   ['Ladies', 'WOMEN'], ['W', 'WOMEN'], ['Icon Boy', 'ICON'], ['icon', 'ICON'], ['ICON BOYS', 'ICON'], ['Boy', 'BOY'],
-  ['Boys', 'BOY'], ['boy players', 'BOY'], ['Girl', 'GIRL'], ['Girls', 'GIRL'], ['girl player', 'GIRL'],
+  ['Boys', 'BOY'], ['boy players', 'BOY'], ['Girl', 'GIRL'], ['Girls', 'GIRL'], ['girl player', 'GIRL'], ['Girl Cat 1', 'GIRL1'], ['Girl Cat 2', 'GIRL2'], ['Boy Cat 1', 'ICON'], ['Boy Cat 2', 'BOY'],
   ['E', null], ['Notes', null], ['', null], ['Team', null], ['Category', null], ['Player', null], ['AB', null],
   ['Men', null], ['123', null], ['Boyfriend', null], ['Girlfriend', null], ['Women Team', 'WOMEN'],
 ];
@@ -209,8 +209,7 @@ test('UNIT-127 config: every round draws from a known list', () => {
   for (const c of ALL_CATEGORIES) assert.ok(ALL_POOLS.includes(poolOf(c)), c);
 });
 test('UNIT-128 config: Girl 1 and Girl 2 share the Girls list, others use their own', () => {
-  assert.equal(poolOf('GIRL1'), 'GIRL'); assert.equal(poolOf('GIRL2'), 'GIRL');
-  for (const c of ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY']) assert.equal(poolOf(c), c);
+  for (const c of ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2']) assert.equal(poolOf(c), c);
 });
 test('UNIT-129 config: shuffle rounds are exactly A and Icon Boy', () => {
   assert.deepEqual([...SHUFFLE].sort(), ['A', 'ICON']);
@@ -223,13 +222,13 @@ test('UNIT-130 config: main event = 28 teams, A–D available, default A/Women/B
 });
 test('UNIT-131 config: kids event = 4 teams, fixed Icon Boy/Boy/Girl 1/Girl 2', () => {
   assert.equal(EVENTS.kids.teamCount, 4);
-  assert.deepEqual(EVENTS.kids.defaults, ['ICON', 'BOY', 'GIRL1', 'GIRL2']);
+  assert.deepEqual(EVENTS.kids.defaults, ['ICON', 'GIRL1', 'BOY', 'GIRL2']);
   assert.equal(EVENTS.kids.fixed, true);
 });
 test('UNIT-132 config: kids team = 2 boys + 2 girls', () => {
   const rounds = EVENTS.kids.defaults;
   assert.equal(rounds.filter(c => ['ICON', 'BOY'].includes(c)).length, 2);
-  assert.equal(rounds.filter(c => poolOf(c) === 'GIRL').length, 2);
+  assert.equal(new Set(rounds.map(poolOf)).size, 4);
 });
 const EVENT_VALUES = [['kids', 'kids'], ['main', 'main'], [undefined, 'main'], ['', 'main'], ['KIDS', 'main'], [{}, 'main'], ['../kids', 'main']];
 for (const [i, [v, e]] of EVENT_VALUES.entries()) {
