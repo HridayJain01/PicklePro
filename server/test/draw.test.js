@@ -76,7 +76,7 @@ test('player validation', async () => {
   await ok('/tournaments', { method: 'POST', body: { name: 'Validation' } });
   const dupAcross = await api('/players', { method: 'PUT', body: { lists: { A: ['Rahul', 'Sid'], B: ['rahul '] } } });
   assert.equal(dupAcross.status, 400);
-  assert.match(dupAcross.body.error, /both A and B/);
+  assert.match(dupAcross.body.error, /both M1 and M2/);
   const dupWithin = await api('/players', { method: 'PUT', body: { lists: { WOMEN: ['Kruti', 'KRUTI'] } } });
   assert.match(dupWithin.body.error, /listed twice/);
   await ok('/players', { method: 'PUT', body: { lists: { A: namesFor('A').slice(0, 27) } } });
@@ -161,7 +161,7 @@ test('full draw A, Women, B, C, D with guards, undo and export', async () => {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(xlsx.body);
   const teams = wb.getWorksheet('Final Teams');
-  assert.deepEqual(teams.getRow(1).values.slice(1), ['Team', 'A Player', 'Women', 'B Player', 'C Player', 'D Player']);
+  assert.deepEqual(teams.getRow(1).values.slice(1), ['Team', 'M1', 'W1', 'M2', 'M3', 'M4']);
   for (let i = 0; i < 28; i++) {
     assert.deepEqual(teams.getRow(i + 2).values.slice(1), [i + 1, ...CATS.map(c => s.teams[i].players[c])]);
   }
@@ -306,7 +306,7 @@ test('new tournaments default to A, Women, B, C', async () => {
   await ok('/tournaments', { method: 'POST', body: { name: 'Defaults' } });
   // A new tournament copies the previous order; a brand-new database gets the full default.
   const { Tournament } = await import('../src/models.js');
-  assert.deepEqual([...new Tournament({ name: 'x' }).categories], ['A', 'WOMEN', 'B', 'C']);
+  assert.deepEqual([...new Tournament({ name: 'x' }).categories], ['A', 'B', 'C', 'WOMEN']);
 });
 
 test('categories lock at start and the next category waits for finalize', async () => {
@@ -504,7 +504,7 @@ test('audience ticker and viewer count', async t => {
   assert.equal(s.recent.length, 5);
   assert.deepEqual(s.recent.map(r => r.teamNumber), [6, 5, 4, 3, 2], 'newest first');
   assert.equal(s.recent[0].name, s.teams[5].players.WOMEN);
-  assert.equal(s.recent[0].label, 'Women');
+  assert.equal(s.recent[0].label, 'W1');
 
   // Viewer rule: distinct audience browsers (by their localStorage id) with a live connection.
   const audience = id => socketTo({ role: 'audience', viewer: `viewer-${id}-0000` });
@@ -584,7 +584,7 @@ test('kids event: 4 teams, Icon Boy shuffle, Boy, two Girl rounds from one list 
   // Girl Cat 1 refuses to start with 3 girls; fixing the list (still editable) lets it run.
   const short = await kspin();
   assert.equal(short.status, 400);
-  assert.match(short.body.error, /Girl Cat 1 needs exactly 4 players \(has 3\)/);
+  assert.match(short.body.error, /G1 needs exactly 4 players \(has 3\)/);
   await ok('/kids/players', { method: 'PUT', body: { lists: { GIRL1: kidNames('Girl', 4) } } });
   for (let i = 0; i < 4; i++) { assert.equal((await kspin()).status, 200); await pause(20); }
   await ok('/kids/finalize', { method: 'POST', body: { category: 'GIRL1' } });
@@ -619,9 +619,9 @@ test('kids event: 4 teams, Icon Boy shuffle, Boy, two Girl rounds from one list 
   const xlsx = await api('/kids/export.xlsx');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(xlsx.body);
-  assert.deepEqual(wb.getWorksheet('Final Teams').getRow(1).values.slice(1), ['Team', 'Boy Cat 1 (Icon)', 'Girl Cat 1', 'Boy Cat 2', 'Girl Cat 2']);
+  assert.deepEqual(wb.getWorksheet('Final Teams').getRow(1).values.slice(1), ['Team', 'B1', 'G1', 'B2', 'G2']);
   // Kids import headers.
-  const csv = 'Boy Cat 1,Girl Cat 1,Boy Cat 2,Girl Cat 2\nAru,Cia,Ben,Dee\n';
+  const csv = 'B1,G1,B2,G2\nAru,Cia,Ben,Dee\n';
   assert.deepEqual((await parseUpload({ filename: 'k.csv', data: Buffer.from(csv).toString('base64') })).lists, { ICON: ['Aru'], GIRL1: ['Cia'], BOY: ['Ben'], GIRL2: ['Dee'] });
 
   // The main event was untouched, and never heard the kids draw.

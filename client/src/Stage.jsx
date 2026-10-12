@@ -405,15 +405,6 @@ function Deal({ assignments }) {
   );
 }
 
-// The team's A player leads it: shown as captain while the rest of the team is drawn.
-function Captain({ state, category, team }) {
-  // The first shuffle round (A in the main draw, Icon Boy for kids) holds the team's captain.
-  const lead = state.categories.find(c => c.shuffle ?? c.key === 'A');
-  const name = lead && category !== lead.key && team ? state.teams[team - 1]?.players[lead.key] : null;
-  if (!name) return null;
-  return <p className="captain">🏓 Captain <b>{name}</b></p>;
-}
-
 // When the last category's pick lands, the whole team is complete: show it as one card.
 function TeamComplete({ state, show, winner, team }) {
   if (show.category !== state.categories.at(-1)?.key) return null;
@@ -480,7 +471,6 @@ function StageView({ state, show, finish, children, big = false, announce = null
         <h2 className="stage-title">
           {isShuffle ? `Teams ${first}–${lastTeam}` : <>Team <span className="team-big">{first}</span></>}
         </h2>
-        {!isShuffle && <Captain state={state} category={show.category} team={first} />}
         {!(done && isShuffle) && (
           <div className="machine-wrap">
             <Reel
@@ -545,7 +535,6 @@ function StageView({ state, show, finish, children, big = false, announce = null
               ? (state.mode === 'shuffle' ? `Teams 1–${state.teamCount}` : <>Up next: Team <span className="team-big">{state.currentTeam}</span></>)
               : `All ${state.teamCount} teams filled`}
           </h2>
-          {state.mode === 'spin' && <Captain state={state} category={state.current} team={state.currentTeam} />}
           {state.remaining.length > 0 && <Reel key={`idle-${state.current}`} names={state.remaining} phase="idle" />}
           <div className="result">
             {last && last.mode === 'spin' ? (

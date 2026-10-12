@@ -90,7 +90,7 @@ const HEADERS = [
   ['A', 'A'], ['a', 'A'], ['A Player', 'A'], ['A Players', 'A'], ['Category A', 'A'], ['Cat B', 'B'], ['Group C', 'C'],
   ['  d  ', 'D'], ['B-Players', 'B'], ['C_player', 'C'], ['Women', 'WOMEN'], ['WOMEN', 'WOMEN'], ['woman', 'WOMEN'],
   ['Ladies', 'WOMEN'], ['W', 'WOMEN'], ['Icon Boy', 'ICON'], ['icon', 'ICON'], ['ICON BOYS', 'ICON'], ['Boy', 'BOY'],
-  ['Boys', 'BOY'], ['boy players', 'BOY'], ['Girl', 'GIRL'], ['Girls', 'GIRL'], ['girl player', 'GIRL'], ['Girl Cat 1', 'GIRL1'], ['Girl Cat 2', 'GIRL2'], ['Boy Cat 1', 'ICON'], ['Boy Cat 2', 'BOY'],
+  ['Boys', 'BOY'], ['boy players', 'BOY'], ['Girl', 'GIRL'], ['Girls', 'GIRL'], ['girl player', 'GIRL'], ['Girl Cat 1', 'GIRL1'], ['Girl Cat 2', 'GIRL2'], ['Boy Cat 1', 'ICON'], ['Boy Cat 2', 'BOY'], ['M1', 'A'], ['M2', 'B'], ['m3', 'C'], ['W1', 'WOMEN'], ['B1', 'ICON'], ['G1', 'GIRL1'], ['B2', 'BOY'], ['G2', 'GIRL2'], ['M1 Players', 'A'],
   ['E', null], ['Notes', null], ['', null], ['Team', null], ['Category', null], ['Player', null], ['AB', null],
   ['Men', null], ['123', null], ['Boyfriend', null], ['Girlfriend', null], ['Women Team', 'WOMEN'],
 ];
@@ -215,10 +215,10 @@ test('UNIT-129 config: shuffle rounds are exactly A and Icon Boy', () => {
   assert.deepEqual([...SHUFFLE].sort(), ['A', 'ICON']);
   assert.equal(isShuffle('A'), true); assert.equal(isShuffle('WOMEN'), false);
 });
-test('UNIT-130 config: main event = 28 teams, A–D available, default A/Women/B/C', () => {
+test('UNIT-130 config: main event = 28 teams, default M1/M2/M3/W1', () => {
   assert.equal(EVENTS.main.teamCount, 28);
-  assert.deepEqual(EVENTS.main.available, ['A', 'WOMEN', 'B', 'C', 'D']);
-  assert.deepEqual(EVENTS.main.defaults, ['A', 'WOMEN', 'B', 'C']);
+  assert.deepEqual(EVENTS.main.available, ['A', 'B', 'C', 'WOMEN', 'D']);
+  assert.deepEqual(EVENTS.main.defaults, ['A', 'B', 'C', 'WOMEN']);
 });
 test('UNIT-131 config: kids event = 4 teams, fixed Icon Boy/Boy/Girl 1/Girl 2', () => {
   assert.equal(EVENTS.kids.teamCount, 4);

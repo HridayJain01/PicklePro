@@ -76,10 +76,10 @@ const BAD_DOCS = [
 for (const [label, fn] of BAD_DOCS) {
   test(`${id()} schema: ${label} -> rejected`, async () => { await assert.rejects(fn()); });
 }
-test(`${id()} defaults: new tournament = main event, DRAFT, 28 teams, A/Women/B/C, 6 s, predictions on`, async () => {
+test(`${id()} defaults: new tournament = main event, DRAFT, 28 teams, M1/M2/M3/W1, 6 s, predictions on`, async () => {
   const d = await Tournament.create({ name: 'Defaults' });
   assert.equal(d.event, 'main'); assert.equal(d.status, 'DRAFT'); assert.equal(d.teamCount, 28);
-  assert.deepEqual([...d.categories], ['A', 'WOMEN', 'B', 'C']); assert.equal(d.spinMs, 6000); assert.equal(d.predictions, true);
+  assert.deepEqual([...d.categories], ['A', 'B', 'C', 'WOMEN']); assert.equal(d.spinMs, 6000); assert.equal(d.predictions, true);
 });
 test(`${id()} legacy: a tournament document WITHOUT an event field is treated as the main event`, async () => {
   const legacy = await Tournament.collection.insertOne({ name: 'Legacy no event', status: 'DRAFT', teamCount: 28, categories: ['A', 'WOMEN', 'B', 'C'], currentIndex: 0, spinMs: 6000, createdAt: new Date(), updatedAt: new Date() });

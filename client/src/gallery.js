@@ -70,7 +70,7 @@ export async function downloadGallery(state, { save = true } = {}) {
       const ly = y + 64 + k * lineH + lineH / 2;
       g.fillStyle = 'rgba(244,247,242,0.55)';
       g.font = `700 15px ${body}`;
-      g.fillText(cat.short ?? (cat.label === 'Women' ? 'W' : cat.label), x + 14, ly);
+      g.fillText(cat.short ?? cat.label, x + 14, ly);
       g.fillStyle = '#ffffff';
       g.font = `700 19px ${body}`;
       let name = t.players[cat.key] ?? '—';

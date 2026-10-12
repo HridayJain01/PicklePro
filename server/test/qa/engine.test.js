@@ -1,3 +1,4 @@
+import { LABELS } from '../../src/models.js';
 // DRAW — the business-critical engine. Every pick position of every round in a full main draw,
 // stale/ahead requests at each sampled position, undo at first/middle/last, finalize rules,
 // category orders, and the full kids format. Invariants are checked after every pick.
@@ -81,7 +82,7 @@ for (const cat of ['WOMEN', 'B', 'C', 'D']) {
       });
       test(`${id()} main ${cat}: undone pick is in history as voided; re-draw Team ${team}`, async () => {
         const h = (await ok(ctx, '/admin')).history;
-        assert.ok(h.some(r => r.voided && r.teamNumber === team && r.category === (cat === 'WOMEN' ? 'Women' : cat)));
+        assert.ok(h.some(r => r.voided && r.teamNumber === team && r.category === LABELS[cat]));
         assert.equal((await raw(ctx, '/draw', { method: 'POST', body: { category: cat, team } })).status, 200);
         assertInvariants(await state(ctx));
       });

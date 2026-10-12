@@ -21,7 +21,13 @@ function loadImage(src) {
 }
 
 export async function downloadReport(state, { save = true } = {}) {
-  const [{ jsPDF }, { autoTable }, logo] = await Promise.all([import('jspdf'), import('jspdf-autotable'), loadImage('/logo.png')]);
+  let libs;
+  try {
+    libs = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+  } catch {
+    throw new Error('The app was just updated. Refresh this page (pull down or press F5) and tap PDF report again.');
+  }
+  const [[{ jsPDF }, { autoTable }], logo] = [libs, await loadImage('/logo.png')];
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const cats = state.categories;

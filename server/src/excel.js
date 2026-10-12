@@ -12,7 +12,7 @@ export async function exportWorkbook(tournamentId, ev = 'main') {
   const teams = wb.addWorksheet('Final Teams');
   teams.columns = [
     { header: 'Team', key: 'team', width: 8 },
-    ...s.t.categories.map(c => ({ header: c.length === 1 ? `${c} Player` : LABELS[c], key: c, width: 24 })),
+    ...s.t.categories.map(c => ({ header: LABELS[c], key: c, width: 24 })),
   ];
   const rows = Array.from({ length: s.t.teamCount }, (_, i) => ({ team: i + 1 }));
   for (const e of s.revealed) rows[e.teamNumber - 1][e.category] = e.playerName;
@@ -38,11 +38,14 @@ export async function exportWorkbook(tournamentId, ev = 'main') {
   return { buffer: await wb.xlsx.writeBuffer(), name: s.t.name };
 }
 
-// Header cell -> category: "A", "A Player", "Category B", "Women", "Ladies", ...
+// Header cell -> category. Current names: M1 M2 M3 W1 (main), B1 G1 B2 G2 (kids). Older headers
+// still work: "A", "Category B", "Women", "Ladies", "Boy Cat 1", "Icon Boy", ...
+const CODES = { m1: 'A', m2: 'B', m3: 'C', m4: 'D', w1: 'WOMEN', b1: 'ICON', g1: 'GIRL1', b2: 'BOY', g2: 'GIRL2' };
 export function headerCategory(text) {
   const h = String(text).toLowerCase().replace(/[^a-z]/g, '');
-  // Kids lists: "Boy Cat 1" / "Icon Boy", "Boy Cat 2" / "Boy", "Girl Cat 1", "Girl Cat 2".
   const k = String(text).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const code = k.replace(/(players?|list|category|cat)$/, '');
+  if (CODES[code]) return CODES[code];
   if (/^icon/.test(h) || /^boys?(cat|category)?(1|one)/.test(k)) return 'ICON';
   if (/^girls?(cat|category)?(1|one)/.test(k)) return 'GIRL1';
   if (/^girls?(cat|category)?(2|two)/.test(k)) return 'GIRL2';
@@ -80,7 +83,7 @@ export async function parseUpload({ filename, data } = {}) {
     rows.push(Array.from({ length: sheet.columnCount }, (_, i) => cleanName(row.getCell(i + 1).text)));
   });
   const columns = (rows[0] ?? []).map(headerCategory);
-  if (!columns.some(Boolean)) throw new HttpError(400, 'First row must name the categories: A, Women, B, C, D (kids: Icon Boy, Boy, Girls)');
+  if (!columns.some(Boolean)) throw new HttpError(400, 'First row must name the categories: M1, M2, M3, W1 (kids: B1, G1, B2, G2)');
   const lists = {};
   columns.forEach((c, i) => {
     if (c) lists[c] = rows.slice(1).map(r => r[i]).filter(Boolean);

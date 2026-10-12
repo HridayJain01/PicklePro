@@ -4,15 +4,17 @@ const { Schema, model } = mongoose;
 
 export const TEAM_COUNT = 28;
 
-// Draw categories (rounds) and their labels. Each round draws from the player list of the same key.
-// Kids: Boy Cat 1 (Icon, key ICON), Girl Cat 1, Boy Cat 2 (key BOY), Girl Cat 2 — four separate lists.
+// Draw categories (rounds) and their display names. Each round draws from the player list of the
+// same key. Keys stay as stored in the database; people see the names:
+//   main: A = M1, B = M2, C = M3, WOMEN = W1 (D = M4, optional)
+//   kids: ICON = B1 (shuffled), GIRL1 = G1, BOY = B2, GIRL2 = G2
 // GIRL is the old shared girls list, kept only so older tournaments still load.
 export const LABELS = {
-  A: 'A', WOMEN: 'Women', B: 'B', C: 'C', D: 'D',
-  ICON: 'Boy Cat 1 (Icon)', BOY: 'Boy Cat 2', GIRL1: 'Girl Cat 1', GIRL2: 'Girl Cat 2', GIRL: 'Girls (old list)',
+  A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4',
+  ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2', GIRL: 'Girls (old list)',
 };
-// Short codes for team cards (Girl 1 / Girl 2 must stay distinguishable).
-export const SHORT = { A: 'A', WOMEN: 'W', B: 'B', C: 'C', D: 'D', ICON: 'B1', BOY: 'B2', GIRL1: 'G1', GIRL2: 'G2' };
+// Short codes for team cards (same as the names).
+export const SHORT = { A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4', ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2' };
 export const ALL_CATEGORIES = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2'];
 export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2', 'GIRL'];
 export const poolOf = category => category;
@@ -23,11 +25,11 @@ export const SHUFFLE = new Set(['A', 'ICON']);
 export const EVENTS = {
   main: {
     teamCount: TEAM_COUNT,
-    available: ['A', 'WOMEN', 'B', 'C', 'D'],
-    defaults: ['A', 'WOMEN', 'B', 'C'],
+    available: ['A', 'B', 'C', 'WOMEN', 'D'],
+    defaults: ['A', 'B', 'C', 'WOMEN'],
     fixed: false,
   },
-  // Kids: 4 teams of 2 boys + 2 girls (one from each category list); Boy Cat 1 is the Icon shuffle.
+  // Kids: 4 teams of 2 boys + 2 girls (one from each list); B1 is shuffled onto all teams at once.
   kids: {
     teamCount: 4,
     available: ['ICON', 'GIRL1', 'BOY', 'GIRL2'],
@@ -44,7 +46,7 @@ export const Tournament = model('Tournament', new Schema({
   status: { type: String, enum: ['DRAFT', 'LIVE', 'COMPLETED'], default: 'DRAFT' },
   teamCount: { type: Number, default: TEAM_COUNT },
   // Enabled categories in draw order. Locked once the draw starts.
-  categories: { type: [{ type: String, enum: ALL_CATEGORIES }], default: ['A', 'WOMEN', 'B', 'C'] },
+  categories: { type: [{ type: String, enum: ALL_CATEGORIES }], default: ['A', 'B', 'C', 'WOMEN'] },
   // Index into `categories` of the category being drawn; everything before it is finalized.
   currentIndex: { type: Number, default: 0 },
   spinMs: { type: Number, default: 6000, min: 0, max: 30000 },

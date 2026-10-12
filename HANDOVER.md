@@ -232,6 +232,12 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-12 — Category names M1/M2/M3/W1 and B1/G1/B2/G2, no captain, PDF fix
+- Display names everywhere (chips, cards, stage, PDF, Excel, errors): main A=M1, B=M2, C=M3, WOMEN=W1 (D=M4); kids ICON=B1, GIRL1=G1, BOY=B2, GIRL2=G2. Database keys unchanged. New main tournaments default to M1, M2, M3, W1 order (host can still reorder in Setup).
+- Excel import accepts M1 M2 M3 W1 / B1 G1 B2 G2 headers (old headers still work).
+- Captain line removed from the stage and big screen.
+- PDF: a tab opened before a redeploy asked for removed file names; Vercel answered with the page, so the PDF silently failed. Now /assets/* 404s, the app reloads itself once on such errors, and the PDF button shows a refresh message if it still fails.
+
 ### 2026-10-12 — Free-tier hardening for ~800 phones
 - New socket connections get the cached public state (no DB read per phone joining).
 - Reactions relayed at most 4 per 500 ms per event (taps x phones no longer floods the server).

@@ -270,7 +270,7 @@ test(`${id()} import: XLSX through the API`, async () => {
   await ok(ctx, '/players', { method: 'PUT', body: { lists } });
 });
 test(`${id()} import: kids file through the kids API`, async () => {
-  const { lists } = await ok(ctx, '/kids/players/import', { method: 'POST', body: { filename: 'k.csv', data: b64('Boy Cat 1,Girl Cat 1,Boy Cat 2,Girl Cat 2\nI1,G1,B1,H1\n') } });
+  const { lists } = await ok(ctx, '/kids/players/import', { method: 'POST', body: { filename: 'k.csv', data: b64('B1,G1,B2,G2\nI1,G1,B1,H1\n') } });
   assert.deepEqual(Object.keys(lists).sort(), ['BOY', 'GIRL1', 'GIRL2', 'ICON']);
 });
 test(`${id()} import: anonymous import -> 401`, async () => {
@@ -287,7 +287,7 @@ test(`${id()} config: Vercel rewrites /api (incl. /api/kids) to the Render backe
 });
 test(`${id()} config: Vercel SPA fallback serves index.html for /admin and /screen`, () => {
   const v = JSON.parse(read('client/vercel.json'));
-  assert.ok(v.rewrites.some(r => r.source === '/(.*)' && r.destination === '/index.html'));
+  assert.ok(v.rewrites.some(r => r.source === '/((?!assets/).*)' && r.destination === '/index.html'));
 });
 test(`${id()} config: PWA service worker never caches /api or /socket.io (no stale draw data)`, () => {
   const c = read('client/vite.config.js');
