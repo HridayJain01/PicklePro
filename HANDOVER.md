@@ -1,6 +1,11 @@
 # PicklePro — Handover
 
-Live team-draw app for the **ICC Pickleball** 28-team doubles tournament. The host runs the draw on one device; everyone else watches the same spin live on phones and a projector.
+Live team-draw ("auction") app for the **ICC Pickleball** tournaments, built & developed by **SP Tech**. The host runs the draw on one device; everyone else watches the same spin live on their phones (and optionally a projector). One app runs **two auction modes**:
+
+| Mode | Teams | Rounds (in order) | Each team gets |
+|---|---|---|---|
+| **Main draw** | 28 | A (shuffled in one go) → Women → B → C (D optional; any order) | one player per category |
+| **Kids draw** | 4 | Icon Boy (shuffled in one go) → Boy → Girl 1 → Girl 2 | 1 Icon Boy + 1 Boy + 2 Girls |
 
 > Keep this file current. Every change to the app gets an entry in the [Change log](#change-log) at the bottom.
 
@@ -8,81 +13,79 @@ Live team-draw app for the **ICC Pickleball** 28-team doubles tournament. The ho
 
 ## 1. Links
 
-**Kids draw (separate auction mode, same engine):** same single links — a **Main draw | Kids draw** switch at the top of the audience page and the host page (adds `?draw=kids`; old `/kids`, `/kids/admin` links still work). 4 teams; each team = 1 Icon Boy + 1 Boy + 2 Girls. Rounds: Icon Boy (shuffled onto Teams 1–4 in one go, they are the team captains) → Boy → Girl 1 → Girl 2. Girl 1 and Girl 2 both draw from one Girls list of 8. Its own tournaments, lists, predictions, leaderboard, viewer count and Socket.IO room; API under `/api/kids/*`. The main event is unaffected and both can run at the same time.
-
-
-| Who | Link | Purpose |
+| Who | Link | Notes |
 |---|---|---|
-| Audience (phones) | https://pickle-pro-peach.vercel.app | Watch live. Read-only. |
-| Host / admin | https://pickle-pro-peach.vercel.app/admin | Log in, set up, Shuffle / Spin / Finalize, export Excel |
-| Projector / TV | https://pickle-pro-peach.vercel.app/screen | Big-screen view with QR code to join |
-| Backup (full app) | https://picklepro-api.onrender.com (+ `/admin`, `/screen`) | Use if Vercel is down |
-| Health check | https://picklepro-api.onrender.com/api/health | `{"ok":true,"db":"up"}` = server + database fine |
-| Repository | https://github.com/sidhjain31/PicklePro | |
+| **Everyone (phones)** | https://pickle-pro-peach.vercel.app | Watch live. **Main draw / Kids draw** switch at the top. |
+| **Host / admin** | https://pickle-pro-peach.vercel.app/admin | Log in, set up, Shuffle / Spin / Finalize, PDF / Excel / gallery. Same switch at the top. |
+| Projector / TV (optional) | https://pickle-pro-peach.vercel.app/screen | Big-screen view with QR code; follows the same mode (`?draw=kids`). |
+| Backup (full app) | https://picklepro-api.onrender.com (+ `/admin`) | Use if Vercel is down. |
+| Health check | https://picklepro-api.onrender.com/api/health | `{"ok":true,"db":"up"}` = server + database fine. |
+| Repository | https://github.com/sidhjain31/PicklePro | Push to `main` deploys everything. |
 
-**Host password:** the `ADMIN_PASSWORD` environment variable in Render (dashboard → `picklepro-api` → Environment). Local development uses `server/.env`.
+- The switch changes mode **in place, without reloading** (so sound stays on) and adds `?draw=kids` to the URL — a refresh or a shared link opens the same mode. Older links `/kids`, `/kids/admin`, `/kids/screen` still work.
+- **Host password:** the `ADMIN_PASSWORD` environment variable in Render (dashboard → `picklepro-api` → Environment). One login works for both modes. Local development uses `server/.env`.
+- **Contacts shown in the app** (top strip + footer, from one list in `client/src/Brand.jsx`): Sidh Jain 90671 27688, Pinkesh Valdria 96536 72196; WhatsApp enquiries → Sidh (`wa.me/919067127688`, prefilled "Hi SP Tech, I would like to enquire about your website and application development services.").
 
 ---
 
-## 2. How the draw works
+## 2. How the draw works (both modes)
 
-- Categories (default **A, Women, B, C**; D optional) can be put in **any order** at setup. Order locks when the draw starts.
-- **Category A** is always shuffled onto Teams 1–28 **in one go**, wherever it sits in the order.
-- **Every other category** draws **one player per spin**: first spin → Team 1, next → Team 2, … → Team 28.
-- A category must be **Finalized** (all 28 filled) before the next one starts. Finalized categories never change.
-- **Undo** removes only the latest spin in the current category; it stays in history as *Undone*.
-- Every random pick is made **on the server** with Node's `crypto.randomInt` (Fisher–Yates for A) — the operating system's cryptographically secure generator, with unbiased (rejection-sampled) ranges. Browsers only animate.
-- **Provably fair (commit–reveal):** when a spin starts the server publishes `commitment = SHA-256("PicklePro|v1|actionId|category|team=name;…|key")` with a fresh 256-bit secret `key`; the key is revealed only after the spin. The host page recomputes the hash and shows **✅ Verified fair** (tap for details); audience phones and the projector do not show the seal (owner's choice). Commitment + key for every pick are in the Excel *Draw History*. Needs the server from this change deployed (git push) — until then the seal simply doesn't show.
-- Each pick is **saved before it is shown**, hidden from every screen until the spin ends, and survives refresh / reconnect / server restart.
-- Duplicate draws are impossible: one action at a time on the server, stale/double clicks rejected, and unique database indexes as the last guard.
-- No name may appear twice anywhere in a tournament (case and spaces ignored). Each category needs exactly 28 names before its first draw.
+- **Server-authoritative.** Every random pick is made on the server with Node's `crypto.randomInt` (Fisher–Yates for shuffle rounds) — the operating system's cryptographically secure generator with unbiased ranges. Browsers only animate the result.
+- **Shuffle rounds** (A in the main draw, Icon Boy for kids) place the whole list onto every team in one action. The players of the first shuffle round are shown as each team's **🏓 Captain**.
+- **Every other round** draws **one player per spin** for the next team: Team 1, Team 2, … in order.
+- A round must be **Finalized** (every team filled) before the next starts. Finalized rounds never change.
+- **Undo** removes only the latest spin in the current round; it stays in the history as *Undone*.
+- **Each pick is saved before it is shown**, hidden from every screen (and from `/api/state`) until the spin ends, and survives refresh / reconnect / server restart (pending reveals are rescheduled on boot).
+- **No double draws:** one action at a time on the server, stale/double clicks rejected (the client must name the team it thinks is next), and unique database indexes as the last guard.
+- **Lists:** no name may appear twice anywhere in a tournament (case/spaces ignored). A list must hold exactly the players its rounds will place before its first draw (main: 28 per category; kids: Icon Boy 4, Boy 4, **Girls 8** — Girl 1 and Girl 2 both draw from the one Girls list; Girl 2 uses the 4 left after Girl 1). A list can be edited until its first round starts.
+- **Provably fair (commit–reveal):** when a spin starts the server publishes `commitment = SHA-256("PicklePro|v1|actionId|category|team=name;…|key")` with a fresh 256-bit secret key, revealed only after the spin. The **host page** recomputes it and shows ✅ Verified fair (audience and projector don't show the seal — owner's choice). Commitment + key for every pick are in the Excel *Draw History*.
+- **Separate events.** The main and kids draws have separate tournaments, player lists, predictions, leaderboards, viewer counts and live (Socket.IO) rooms. Both can run at the same time; neither can see or affect the other.
 
-### What the audience sees
-1. **Round walk-out**: when a category starts, a full-stage "NEXT ROUND · Women · One spin per team" card with that category's own jingle.
-2. **Countdown** 3 → 2 → 1 → GO! (with beeps) while every remaining name **flies by** behind the number — skipped if spin length < 4 s or the screen joined mid-spin.
-3. **Slot machine**: pickleball paddles swing, a ball rallies, names tick past the line. Sounds: stadium **crowd swells**, a steady rally — or a **drumroll** when only 3 names are left.
-4. **Slow-down**: the rally **speeds up and ends in a smash** as the reel stops. About 40% of spins **near-miss**: the reel stalls one name short (orange glow + crowd **"OHHH"**) then creeps onto the winner. Chosen from the draw id so every screen plays the same tease; never changes the result.
-5. **Winner card** with "SMASH!", confetti, fanfare and a **crowd cheer**. Category A instead **deals 28 cards**.
-6. **🏓 Captain** line: while Women/B/C are drawn, the team's A player is shown as captain.
-7. **Team complete card**: on the last category's spin, the whole team (all categories) appears as one card.
-8. **Trophy moment**: on Finalize, referee whistle + trophy fanfare + "Women locked in! 🏆" card.
-9. Team board updates; the drawn cell stays hidden (`???`) until the reveal.
-10. Sound is off until each screen taps **🔇 Tap for sound** (browser rule). **⛶ Full screen** button on the stage.
+### What the audience sees during a draw
+1. **Round walk-out**: "NEXT ROUND · Girl 1 · One spin per team" card + that round's jingle.
+2. **Countdown** 3 → 2 → 1 → GO! while the remaining names fly by (skipped if spin length < 4 s or the screen joined mid-spin).
+3. **Slot machine**: two pickleball paddles, a rally ball in its own strip above the reel (smooth parabola on GPU transforms), names scrolling at 13 per second.
+4. **Slow-down + near-miss** on every one-by-one spin: the reel either stalls one name short then slides on, or slips just past then settles back (chosen from the draw id so every screen matches). It always ends on the server's pick.
+5. **Winner card** ("SMASH!", confetti, bell). Shuffle rounds deal one card per team instead.
+6. **Captain** line, and on the last round a **Team complete** card with the whole team.
+7. **Trophy moment** on Finalize ("Girl 1 locked in! 🏆").
+8. The team board updates; a cell still landing on that phone shows `???` (no spoilers anywhere: board, ticker, now-bar, follow card).
 
-### Audience page layout
-1. Header (ICC logo, tournament name, LIVE + 👀 watching).
-2. **SP Tech strip**: "Built & developed by SP Tech" · "Turning Ideas into Experiences" · green **For IT projects, reach us on WhatsApp** button (wa.me/919067127688, prefilled "Hi SP Tech, I would like to enquire about your website and application development services."). One row on wide screens, stacked on phones.
-3. Category steps → stage (team, captain, reel, result) → latest-picks ticker.
-4. ⭐ Follow your team → 🔮 Predict the pick (hidden when the host closes predictions).
-5. All teams (with search).
-6. **Bottom**: "Built & developed by SP Tech" + **Sidh Jain 90671 27688** and **Pinkesh Valdria 96536 72196** call cards (side by side; stacked under 420 px). Contacts appear only here (`client/src/Brand.jsx`).
+### Sound (all synthesized in `client/src/sound.js`, no audio files)
+- **Pure mechanical slot machine:** lever spring + gear catch → motor hum and reel mechanism whirr that slows into distinct clacks → mechanical near-miss shudder → heavy thunk, ringing bell, coin cascade. Plus a soft paddle "pock" only when the ball reaches a paddle, a quiet crowd murmur, a drumroll for the last ≤ 3 names, round jingles, whistle + trophy on Finalize.
+- **Tap for sound** (browser rule). Audio is unlocked inside the tap (incl. iPhone silent-switch handling). All sound goes through one master volume: **mute stops everything instantly**, including scheduled notes.
+- **Resume:** after a refresh or coming back from another app, if the phone paused audio a **"🔈 Tap to resume sound"** button appears (bottom of the screen); one tap restores it. Switching Main/Kids does **not** pause sound (no reload).
 
-### Audience participation (phones)
-- **👀 N watching** in the header. **Counting rule:** distinct *audience browsers* with a live connection. Each browser sends a random id (localStorage `team-draw:viewer`) with its Socket.IO connection (`auth: { role, viewer }`); refreshes, reconnects and extra tabs in the same browser count once; `/admin` (role `host`) and `/screen` (role `screen`) are excluded. Dead phones drop out within ~20 s (pingInterval/pingTimeout 10 s). It counts browsers, not people. Broadcast at most every 1.5 s when it changes; hidden when ≤ 1.
-- **Latest picks ticker** under the stage: last 5 one-by-one picks, newest first (`state.recent`, revealed only; a pick still landing on that phone is held back).
-- **Sticky "Now drawing" bar** (`NowBar.jsx`): when the stage scrolls off screen, a slim top bar shows "🎰 Women · Team 7 · spinning…" → "✅ Anya Kumar → Team 7" / "Up next: …"; tap to jump back to the reel.
-- **⭐ Follow your team** (`Follow.jsx`) — type your name (suggestions from all known names, any case). Card shows "Your team · Team N" with every category (your name highlighted, "Drawing now…" / "To be drawn"), a **Show on board** button, and the board card gets a ⭐ Your team tag. When you get drawn: big "🎉 You're in Team N!" pop-up + fanfare + confetti + long buzz; when a teammate joins: "🤝 X joined your team!" + buzz. Pop-ups wait until the reel has landed on that phone (no spoilers) and never fire on page load or when you start following.
-- **🔍 Find a player's team** — search box above "All teams"; matching teams glow green, "Team N" chips jump to them (only drawn players can be found).
-- **Screen stays awake** during a live draw (Screen Wake Lock API) on phones and `/screen`; re-taken when the viewer returns to the tab.
-- **Buzz on every reveal** (`navigator.vibrate`) — works on Android; iPhones' browsers don't allow web vibration.
-- **Live reactions** 🔥 😂 👏 🎉 😱 ❤️ — bar at the bottom of the phone; **every reaction floats up on every phone and the projector** (server relays them; max 4/sec per phone; only these six emojis).
-- **Predict the pick** — host switch **Audience predictions open/closed** on `/admin` (saved on the tournament as `predictions`, synced live, enforced by `POST /api/guess` → 409 when closed; records and leaderboard kept; a phone that was mid-pick sees "🔒 Predictions are closed by the host"). Card shows "N Women players still pending", the team being predicted and your pick. **Predict Team N** opens the **Pending in <category>** list: every remaining player as a tap-to-pick button (with search). Changeable until the reveal; after it, ✅/❌. Prediction leaderboard on phones; **Top predictors** + "7 of 40 called Team 5 right" on `/screen`. Scored only against revealed picks; rate limited per viewer (12/min) + global cap — never per IP (a venue shares one Wi-Fi IP).
-- ~~Tap battle / crowd spin~~ — **removed 2026-10-11** (front end, server, `TapScore`, `/api/tappers`). Old description for history: big **TAP to spin Team N** button with meter, "you N" count and this round's 🥇🥈🥉 fastest thumbs. **No per-player cap** — it's a game; only faster than a human thumb (>12 taps/sec per phone) is ignored. When the taps reach the target (default 50, settable 5–1000) the server starts the next draw through the normal guarded draw — the server still picks the result. Named taps add up over the whole tournament on the **Top tappers** leaderboard (`GET /api/tappers`, `TapScore` model, flushed to Mongo every second); anonymous taps still fill the meter. Projector/host meter shows "👑 Fastest thumb".
-- **Teams gallery image** — host button when the draw is complete: one 1920×1080 PNG with all 28 teams in the ICC theme. Download only; no share/WhatsApp buttons by request.
+### Audience page (top to bottom)
+1. Header: big ICC logo, tournament name, LIVE, and "👀 N watching" under LIVE.
+2. Slim SP Tech strip: tap-to-call **Sidh** and **Pinkesh**, "By SP Tech", compact green **WhatsApp us** pill.
+3. **Main draw | Kids draw** switch (LIVE / Done badges).
+4. Round steps → stage (team, captain, reel, result) → **latest picks ticker** (last 5).
+5. **⭐ Know your team** — type your name; your team appears as a chain of seats (filled = player, 🎰 = being drawn now, 🔔 = arriving soon) with the **Team alert** message: everyone following that team gets a buzz + pop-up the moment a new teammate is drawn ("New teammate: X joined Team 7!"); "🎉 You're in Team N!" when you're drawn.
+6. **🔮 Predict the pick** — pick who goes to the next team from the **Pending in <round>** list (search, tap to pick, change until the reel stops; saved only after the server confirms). Below it an always-visible **🏆 Leaderboard** box: top 3, "You: #N", **See full leaderboard (N players)**. Hidden if the host closes predictions.
+7. **All teams** with **🔍 Find a player's team** (matches glow, jump buttons) and the ⭐ tag on your team.
+8. Footer: "Built & developed by SP Tech", "Turning Ideas into Experiences", Sidh + Pinkesh call cards, WhatsApp pill.
+- Floating: **reaction bar** 🔥 😂 👏 🎉 😱 ❤️ (everyone's reactions float on every phone of the same draw), sticky **"Now drawing"** bar when the stage scrolls off screen, screen kept awake during a live draw, buzz on every reveal (Android; iPhones don't allow web vibration).
+
+### Viewer count rule ("👀 N watching")
+Distinct **audience browsers** with a live connection, per draw. Each browser sends a random id (localStorage) with its connection; refreshes, reconnects and extra tabs in the same browser count once; host (`/admin`) and projector (`/screen`) are excluded; dead phones drop out within ~20 s. It counts browsers, not people. Hidden when ≤ 1.
 
 ### Host page (`/admin`)
-- **Setup** (before start): tournament name, spin length, categories + order, player lists (paste or **Import .xlsx / .csv**), readiness, **Start draw**.
-- **Draw**: big button changes through *Shuffle A players → Finalize A → Spin for Team N → Finalize …*; **Undo last draw**; **Export Excel**; **PDF report**; **Crowd spin** switch + taps needed; header links to **Audience view** and **Big screen**. When complete: **Download PDF report**, **Teams gallery image**, **Export Excel**.
-- Below the draw: edit lists of categories not yet drawn, **Draw history**, **Past tournaments** (export any earlier one), **Start a new tournament**.
+- **Switch** Main draw / Kids draw at the top (one login for both).
+- **Setup** (before start): name, spin length; main draw = choose categories + order; kids draw = **fixed format card**. Player lists per list (paste one per line or **Import .xlsx / .csv**), readiness (e.g. Icon Boy 4/4, Boy 4/4, Girls 8/8), **Start draw**.
+- **Draw**: big button *Shuffle … → Finalize … → Spin for Team N → Finalize …*; **Undo last draw**; **Export Excel**; **PDF report**; **Audience predictions open/closed** switch; links to Audience view and Big screen (in the current mode).
+- **When complete**: Download PDF report, Teams gallery image, Export Excel.
+- Below: edit lists not yet drawn, Draw history, **Past tournaments** (export any earlier one, per mode), **Start a new tournament** (per mode).
 
-### Spreadsheet import format
-First sheet of an `.xlsx`, or a `.csv`. Row 1 = category names (`A`, `Women`, `B`, `C`, `D`; also `A Player`, `Category B`, `Ladies` …), names underneath, one per cell. Sample: [`samples/sample-players.xlsx`](samples/sample-players.xlsx) (28 × A, Women, B, C, all unique).
+### Spreadsheet import
+First sheet of an `.xlsx`, or a `.csv`. Row 1 = list names, names underneath, one per cell.
+- Main: `A`, `Women` (or `Ladies`), `B`, `C`, `D` (also `A Player`, `Category B` …). Sample: [`samples/sample-players.xlsx`](samples/sample-players.xlsx).
+- Kids: `Icon Boy` (or `Icon`), `Boy` / `Boys`, `Girl` / `Girls`.
 
-### PDF report (organizers)
-Host page → **PDF report** (during the draw) or **Download PDF report** (when complete). Built in the browser from revealed picks only. A4 landscape, ICC header: page 1 = all 28 teams × categories; page 2 = every player A–Z with category and team (for check-in desks); footer notes the fairness method.
-
-### Excel export
-Two sheets: **Final Teams** (Team, one column per category) and **Draw History** (timestamp, category, sequence, player, team, event ID, action ID, Final/UNDONE, fairness commitment, fairness key).
+### Exports (follow the selected mode)
+- **PDF report** (built in the browser, revealed picks only): A4 landscape, ICC header; page 1 = all teams × rounds (kids: Team | Icon Boy | Boy | Girl 1 | Girl 2); page 2 = every player A–Z with round and team; fairness note in the footer.
+- **Excel**: *Final Teams* + *Draw History* (timestamp, round, sequence, player, team, event/action ids, Final/UNDONE, fairness commitment + key). Main: `/api/export.xlsx`, kids: `/api/kids/export.xlsx` (host cookie).
+- **Teams gallery image**: one 1920×1080 PNG of all teams in the ICC theme (kids: 4 large cards). Download only — no share buttons by request.
 
 ---
 
@@ -94,61 +97,62 @@ Two sheets: **Final Teams** (Team, one column per category) and **Draw History**
 | `server/` | Node 22.12+ / Express 5 / Socket.IO 4 / Mongoose 9 / ExcelJS / Helmet | Render free web service `picklepro-api` (`render.yaml`) |
 | Database | MongoDB | Atlas M0 (production), local MongoDB 9.0 service (development) |
 
-- Vercel rewrites `/api/*` to Render (`client/vercel.json`). Socket.IO connects straight to Render via the build-time env `VITE_SOCKET_URL=https://picklepro-api.onrender.com`.
+- Vercel rewrites `/api/*` (incl. `/api/kids/*`) to Render (`client/vercel.json`). Socket.IO connects straight to Render (`VITE_SOCKET_URL`).
 - Render also builds and serves the client, so its URL is a full backup site.
-- Socket.IO clients can send only two things: an emoji `reaction` (whitelisted, rate limited, relayed to everyone) and a crowd-spin `tap` (counted only when the host enabled crowd spin; reaching the target calls the same guarded `draw()` the host uses). Nothing a client sends can choose or change a result.
+- **Events:** each tournament has `event` = `main` (default; older documents without the field are main) or `kids`. Routes are mounted twice: `/api/kids/*` (kids) before `/api/*` (main). Sockets send `auth: { role, viewer, event }` and join room `event:<name>`; state, spins, reactions and viewer counts go only to that room.
+- Socket.IO clients can only send emoji `reaction`s (whitelisted, rate limited, relayed to their own draw). Nothing a client sends can start, choose or change a draw.
 
 ### Key files
 | File | What it does |
 |---|---|
-| `server/src/draw.js` | The draw engine: state snapshot, public/admin state, every rule, lock, reveal scheduling, tournament list |
-| `server/src/models.js` | Tournament, Player, DrawEvent schemas + unique indexes; default categories |
-| `server/src/server.js` | Express routes, admin router, health check, static client, Socket.IO |
+| `server/src/models.js` | Schemas + indexes; `LABELS`, `SHORT` codes, `SHUFFLE` rounds, `poolOf` (Girl 1/2 → Girls list), `EVENTS` (main/kids formats) |
+| `server/src/draw.js` | The draw engine (every function takes the event): snapshot, public/admin state (`needed`, `ready`, `recent`…), rules, lock, reveal scheduling, archive |
+| `server/src/server.js` | `eventApi(ev)` routes, auth routes, health, static client, Socket.IO rooms + per-event viewer counts |
+| `server/src/crowd.js` | Reactions relay, `submitGuess`, `leaderboard` (per event) |
 | `server/src/auth.js` | Password login, signed HttpOnly cookie, failed-login rate limit |
-| `server/src/excel.js` | Excel export (any tournament) and spreadsheet import parsing |
-| `server/test/draw.test.js` | Full integration test suite (needs MongoDB) |
-| `client/src/main.jsx` | Picks page by path: `/admin` → Admin, `/screen` → Screen, else Live |
-| `client/src/useLive.js` | Socket connection, cached state, spin phases (spinning → landing → done) |
-| `client/src/Stage.jsx` | Slot machine, countdown, rally, winner card, A deal, sound/fullscreen tools |
-| `client/src/fx.js` | Synthesized sounds (tick, pock, beep, fanfare, deal) and confetti |
-| `client/src/Screen.jsx` | Projector view with picks list and QR code |
-| `client/src/fair.js` | Browser-side SHA-256 verification of each revealed draw |
-| `client/src/report.js` | PDF report (jsPDF + autotable, lazy-loaded) |
-| `client/src/gallery.js` | Teams gallery PNG (canvas) |
-| `client/src/Audience.jsx` | Reactions bar + floating emojis, crowd meter, predictions + leaderboard, round/trophy announcements |
-| `client/src/audience.css` | Styles for the above |
-| `server/src/crowd.js` | Socket reactions + crowd taps, `submitGuess`, `leaderboard` |
-| `client/src/Admin.jsx` | Login, setup, controls, history, archive, new tournament |
-| `client/src/Board.jsx`, `Live.jsx` | Team board; audience page + shared header/steps |
-| `client/src/styles.css` | All styling; palette tokens on `:root` from the ICC logo |
-| `client/public/logo.png` | ICC Pickleball logo (transparent); icons generated from it |
+| `server/src/excel.js` | Excel export (any tournament) and spreadsheet import (main + kids headers) |
+| `server/test/draw.test.js`, `server/test/qa/*.test.js` | 1,009 automated scenarios (unit, API, draw engine, race, DB, security, SIT) — see `TEST_PLAN.md`, `TEST_CASES.md`, `TEST_RESULTS.md` |
+| `server/perf/load.mjs` | Local load / stress / spike / soak script (isolated DB only) |
+| `client/src/event.js` | Current mode (`getEvent`, `setEvent`, `useEvent`), API base, per-mode storage keys, URLs |
+| `client/src/main.jsx` | Picks the page (`/admin`, `/screen`, audience) and remounts it when the mode switches |
+| `client/src/DrawSwitch.jsx` | Main draw / Kids draw tabs with LIVE / Done badges |
+| `client/src/useLive.js` | Live connection, cached state, spin phases, announcements, viewer count |
+| `client/src/Stage.jsx` | Reel (frame loop, near-miss), rally ball, paddles, countdown, winner/team cards, sound toggle, resume-sound prompt |
+| `client/src/sound.js` | All audio (mechanical slot, effects, unlock/mute/resume logic); `fx.js` = confetti + re-export |
+| `client/src/Audience.jsx` | Reactions, predictions + leaderboard box, announcements |
+| `client/src/Follow.jsx` | Know your team (seat chain + alerts), team search, wake lock |
+| `client/src/NowBar.jsx` | Latest picks ticker + sticky now-drawing bar |
+| `client/src/Brand.jsx` | SP Tech strip + footer, contacts, WhatsApp link |
+| `client/src/Admin.jsx` | Login, setup (event-aware), controls, prediction switch, history, archive |
+| `client/src/Board.jsx`, `Live.jsx`, `Screen.jsx` | Team board; audience page; projector |
+| `client/src/report.js`, `gallery.js`, `fair.js` | PDF report; gallery PNG; browser-side fairness check |
+| `client/src/styles.css`, `audience.css` | Styling (palette from the ICC logo) |
 
 ### Database collections
-- **tournaments** — name, status (`DRAFT`/`LIVE`/`COMPLETED`), teamCount (28), categories (order), currentIndex, spinMs. The **newest document is the active tournament**; older ones are the archive.
-- **players** — tournamentId, category, name, nameKey (lowercase). Unique on (tournamentId, nameKey).
-- **drawevents** — the source of truth: actionId, sequence, category, teamNumber, playerId, playerName, revealAt, voided, commitment, salt (fairness key; only exposed after reveal). Unique on sequence, and (for non-voided) on team-per-category and on player.
-- **guesses** — tournamentId, category, teamNumber, voterId (random id stored on the phone), nickname, playerName. Unique per (tournament, category, team, voter).
-- Tournament also has `crowdSpin` (bool) and `crowdTarget` (5–1000, default 50).
+- **tournaments** — event, name, status (`DRAFT`/`LIVE`/`COMPLETED`), teamCount (28 / 4), categories (round order), currentIndex, spinMs, predictions (on/off). The newest document **per event** is that event's active tournament; older ones are its archive.
+- **players** — tournamentId, category (= list: A, WOMEN, B, C, D, ICON, BOY, GIRL), name, nameKey. Unique on (tournamentId, nameKey).
+- **drawevents** — the source of truth: actionId, sequence, category (round), teamNumber, playerId, playerName, revealAt, voided, commitment, salt. Unique on sequence and (non-voided) on team-per-round and on player.
+- **guesses** — tournamentId, category, teamNumber, voterId, nickname, playerName. Unique per (tournament, round, team, voter).
 
-### API
-Public: `GET /api/health`, `GET /api/state`, `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/guess`, `GET /api/leaderboard[?voter=<id>]`.
-Host cookie required: `GET /api/admin`, `PATCH /api/tournament`, `POST /api/tournaments`, `GET /api/tournaments`, `PUT /api/players`, `POST /api/players/import`, `POST /api/start`, `POST /api/draw`, `POST /api/undo`, `POST /api/finalize`, `GET /api/export.xlsx[?tournament=<id>]`.
-Socket events (server → clients): `viewers`, `tournament:state`, `draw:spinning`, `draw:revealed`, `draw:undone`, `category:finalized`, `reaction`, `crowd:taps`, `crowd:fired`. Clients → server: `reaction`, `tap`.
+### API (main at `/api`, kids at `/api/kids` — same routes)
+Public: `GET /state`, `POST /guess`, `GET /leaderboard[?voter=]` — plus shared `GET /api/health`, `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout`.
+Host cookie: `GET /admin`, `PATCH /tournament`, `POST /tournaments`, `GET /tournaments`, `PUT /players`, `POST /players/import`, `POST /start`, `POST /draw`, `POST /undo`, `POST /finalize`, `GET /export.xlsx[?tournament=]`.
+Socket events (server → clients, per draw room): `viewers`, `tournament:state`, `draw:spinning`, `draw:revealed`, `draw:undone`, `category:finalized`, `reaction`. Client → server: `reaction`.
 
 ---
 
 ## 4. Running locally (Windows)
 
-Prerequisites (already set up on the dev laptop): Node 22.12+ (v24 installed), MongoDB Community 9.0 running as the `MongoDB` Windows service, `server/.env` with `MONGODB_URI`, `ADMIN_PASSWORD`, `SESSION_SECRET` (32+ chars).
+Prerequisites (set up on the dev laptop): Node 22.12+ (v24), MongoDB Community 9.0 as the `MongoDB` Windows service, `server/.env` with `MONGODB_URI`, `ADMIN_PASSWORD`, `SESSION_SECRET` (32+ chars).
 
 ```bash
 npm run setup:dev     # first time: install server + client dependencies
 npm run dev           # server :4000 + client :5173 together
-npm test              # server test suite (drops the picklepro_test database first)
+npm test              # 1,009 server tests (isolated picklepro_qa_* / picklepro_test DBs)
 npm run build         # client production build
 ```
-- Audience http://localhost:5173 · Host http://localhost:5173/admin · Projector http://localhost:5173/screen
-- Local host password: `ADMIN_PASSWORD` in `server/.env`.
+- http://localhost:5173 (audience) · http://localhost:5173/admin (host) · add `?draw=kids` for the kids draw (or use the switch).
+- Note: the repo lives in OneDrive; OneDrive syncing can make the server's `--watch` restart repeatedly or start slowly — just wait or restart it.
 
 ### Environment variables
 | Variable | Where | Notes |
@@ -166,12 +170,10 @@ npm run build         # client production build
 
 ## 5. Deploying
 
-- **Normal path:** push to `main` on GitHub → Vercel and Render both redeploy automatically, and CI runs the tests.
-- **Without git (used during development):** from the repo root,
-  `vercel deploy --yes --scope sp-tech3 --build-env VITE_SOCKET_URL=https://picklepro-api.onrender.com` → preview link (needs Vercel login as SP TECH),
-  then `vercel promote <preview-url> --scope sp-tech3 --yes` → puts it on the main link.
-  ⚠️ A later git push of older code replaces a promoted build. **Server changes only deploy via git push** (Render has no CLI here).
-- Delete the `.env.local` that `vercel link/deploy` creates in the repo root (it holds a Vercel token; it is git-ignored).
+- **Normal path:** commit and push to `main` → Vercel (client) and Render (server) redeploy automatically (~2–5 min) and GitHub Actions CI runs the tests (`.github/workflows/test.yml`). Server changes only go live through a push.
+- **Preview first (optional):** work on a branch, then from the repo root `vercel deploy --yes --scope sp-tech3 --build-env VITE_SOCKET_URL=https://picklepro-api.onrender.com` → preview link (Vercel login as SP TECH required; it uses the **production** server and data). Publish = merge the branch into `main` and push.
+- Delete the `.env.local` that `vercel deploy` creates in the repo root (holds a Vercel token; git-ignored).
+- Don't pass `--test-timeout` to the whole test run (in Node 22 it also limits the whole file, which takes ~40 s).
 
 ---
 
@@ -179,56 +181,64 @@ npm run build         # client production build
 
 **Before (one-time)**
 - [ ] Know the `ADMIN_PASSWORD` (Render → Environment).
-- [ ] UptimeRobot (free): HTTP monitor on `https://picklepro-api.onrender.com/api/health`, every 5 min — stops the ~1 min cold start.
+- [ ] **UptimeRobot** (free): New monitor → HTTP(s) → `https://picklepro-api.onrender.com/api/health`, every 5 min, email alerts. Reduces cold starts but can't guarantee the free Render service never sleeps — open the site 15 min before.
 - [ ] Atlas: database user has **readWrite on `picklepro` only**; strong password.
 
-**Rehearsal (1–2 days before)**
-- [ ] `/admin` → categories A, Women, B, C → Import `samples/sample-players.xlsx` → Save → Start → run the full draw.
-- [ ] Audience link on 2–3 phones + `/screen` on a laptop: all show the same spin.
-- [ ] Wi-Fi off/on on one phone → it reconnects and catches up. Refresh host mid-spin → resumes.
-- [ ] Export Excel, check both sheets.
-- [ ] **Start a new tournament** with the real event name (rehearsal moves to Past tournaments).
+**Rehearsal (1–2 days before), for each draw you'll run**
+- [ ] `/admin` → choose Main or Kids → import the lists (main: `samples/sample-players.xlsx`; kids: Icon Boy 4, Boy 4, Girls 8) → Save → Start → run the full draw.
+- [ ] Audience link on 2–3 phones: all show the same spin; tap for sound; switch modes and back — sound stays on.
+- [ ] Wi-Fi off/on on one phone → reconnects and catches up. Refresh host mid-spin → resumes.
+- [ ] Export PDF and Excel; check them.
+- [ ] **Start a new tournament** (in that mode) with the real name — the rehearsal moves to Past tournaments.
 
 **On the day**
-- [ ] 15 min before: open `/admin` (wakes server), log in. Load the real lists → every category **28/28**.
-- [ ] Projector: `/screen`, F11, enable sound (tap 🔇 on the audience page on that laptop once; it's remembered).
-- [ ] Share the audience link / QR. Run the draw. **Export Excel after each category** (Atlas M0 has no backups).
+- [ ] 15 min before: open `/api/health` and `/admin` (wakes the server), log in, pick the mode, load the real lists → all counts green.
+- [ ] Share **one** link: https://pickle-pro-peach.vercel.app (people use the switch).
+- [ ] Run the draw. **Export Excel after each round** (Atlas M0 has no automatic backups). PDF + gallery at the end.
 
 **If something goes wrong**
 - *Connection lost* on host: draws pause until it reconnects; nothing is lost.
-- Vercel down: use `https://picklepro-api.onrender.com` (+ `/admin`, `/screen`).
-- Wrong pick: **Undo last draw** (current category only).
-- Vercel login locked after many wrong passwords (all Vercel visitors share one IP): log in on the Render URL instead.
+- Vercel down: use `https://picklepro-api.onrender.com` (+ `/admin`).
+- Wrong pick: **Undo last draw** (current round only).
+- No sound on a phone: tap **Tap for sound / Tap to resume sound**; check the phone's volume (and media volume on Android).
+- Host login locked after many wrong passwords on Vercel (all Vercel visitors share one IP): log in on the Render URL.
 
 ---
 
 ## 7. Current state
 
-**As of 2026-10-09 (audience round pushed)**
-- GitHub `main` = `78a062a` — pushed; CI passed; Render and Vercel both serve it (verified: `/api/leaderboard` answers directly and through Vercel, Vercel bundle contains the new UI).
-- Production now has everything in this document: provably-fair draw, PDF report, countdown, big screen, reactions, predictions, crowd spin, stadium sounds, teams gallery.
-- Professional audience page + SP Tech branding, tap battle leaderboard and pending-player predictions pushed (see change log).
-- CI runs on every push to `main`. GitHub login on this PC was refreshed so pushes may include workflow files.
-- Tests: **21/21 pass** locally; client build clean; full local run verified in the browser (see change log).
-- Production tournament: status DRAFT, categories A, Women, B, C.
-
-**Working agreement:** the owner does all git commits/pushes at the end. Development is checked via Vercel preview/promoted links.
+**As of 2026-10-12**
+- GitHub `main` = `3636a9b` — pushed; CI green; Render and Vercel serve it.
+- Live: both auction modes (main 28 teams, kids 4 teams) behind one link with the reload-free switch; mechanical slot sound; resume-sound prompt; Know your team; leaderboard box; viewer count under LIVE; accurate viewer counting; compact SP Tech branding; prediction switch; PDF/Excel/gallery per mode.
+- Tests: **23/23** pass locally and in CI; production build clean.
+- Production data: main tournament untouched (the main event keeps its existing tournaments); a kids tournament is created automatically the first time the kids draw is opened (DRAFT, "Kids Team Draw").
+- **Still needs a physical-device check:** the new mechanical sound on a real iPhone and Android phone (synthesized audio couldn't be listened to during development), and the viewer count with several real phones.
+- **Not done:** UptimeRobot monitor (needs the owner's account — steps above).
 
 ### Known limits
 - Single server instance only (processing lock and login limiter are in memory).
-- Render free tier sleeps after 15 idle minutes (fixed by UptimeRobot).
+- Render free tier sleeps after 15 idle minutes and has a monthly hours limit.
 - Atlas M0: no automatic backups — export Excel.
-- Team count fixed at 28 (`TEAM_COUNT` in `server/src/models.js`).
+- Team counts are fixed per mode (28 main, 4 kids — `EVENTS` in `server/src/models.js`); kids format is fixed (1 Icon Boy, 1 Boy, 2 Girls per team).
 - Saving a list replaces it non-transactionally (validated first, so failures are unlikely).
+- Web vibration doesn't work on iPhones; the screen wake lock can be blocked by low-power mode.
 
 ### Ideas not built yet
-Host phone remote, read winner names aloud (commentator voice), configurable team count.
+Host "ready check" panel (server awake, test sound), real recorded slot sound files (would need licensed audio), big-screen winner spotlight, accessibility pass (larger text, screen-reader announcements), "You missed: …" catch-up after reconnecting, commentator voice, configurable team counts.
 
 ---
 
 ## Change log
 
 Newest first. Add an entry for every change.
+
+### 2026-10-12 — QA: 1,009 automated scenarios, fixes, load testing (branch `qa-suite`)
+- New suites in `server/test/qa/` (unit 139, API 346, draw engine 259, race 30, DB 45, security 89, SIT 78) + original 23 = 1,009, all passing; `npm test` now runs only `test/**/*.test.js`. Docs: `TEST_PLAN.md`, `TEST_CASES.md` (generated from the real run), `TEST_RESULTS.md`.
+- Fixes: Unicode-NFC + invisible-character stripping in `cleanName` (look-alike duplicate names), per-route host auth (unknown API paths now 404), text-only prediction nicknames/names, cached `GET /state` (≈5.5× throughput) and per-change leaderboard cache, client badge polling 60 s when visible + leaderboard fetch jitter.
+- Local performance: 1,000 simultaneous viewers, reveal to all in < 200 ms p95, 0 missed; spike 500 phones in 1.8 s; soak flat. Not yet deployed.
+
+### 2026-10-12 — HANDOVER rewritten
+- Sections 1–7 rewritten to describe the app as it is now (two auction modes behind one link, mechanical sound, Know your team, leaderboard box, viewer rule, per-mode exports, event-aware architecture, API, checklist, current state). Change log kept below.
 
 ### 2026-10-12 — One link for both draws
 - `client/src/DrawSwitch.jsx`: Main draw / Kids draw tabs (with LIVE / Done badges from each draw's status) on the audience and host pages. Switching swaps the page **in place without a reload** (`setEvent` in `client/src/event.js`; `App` remounts the page keyed by the mode, opening a new live connection for that draw), so sound that is on stays on in either mode; URL gets `?draw=kids` (refresh/back button keep the mode).

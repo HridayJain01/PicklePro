@@ -16,27 +16,28 @@ const voterOf = req => (typeof req.query.voter === 'string' ? req.query.voter : 
 // Public + host routes for one event.
 function eventApi(ev) {
   const api = express.Router();
-  api.get('/state', async (req, res) => res.json(await engine.publicState(undefined, ev)));
+  api.get('/state', async (req, res) => res.json(await engine.cachedPublicState(ev)));
   // Audience predictions: public, rate limited, scored only against revealed picks.
   api.post('/guess', async (req, res) => res.json(await submitGuess(req.body ?? {}, ev)));
   api.get('/leaderboard', async (req, res) => res.json(await leaderboard({ voter: voterOf(req) }, ev)));
 
   // Everything below mutates or reveals admin data: cookie required, enforced server-side.
+  // The login check runs only on these host routes (not on every /api path), so unknown paths
+  // answer 404 instead of a misleading 401.
   const admin = express.Router();
-  admin.use(requireAdmin);
   const ok = fn => async (req, res) => res.json((await fn(req.body ?? {}, ev)) ?? { ok: true });
-  admin.get('/admin', async (req, res) => res.json(await engine.adminState(ev)));
-  admin.patch('/tournament', ok(engine.updateSettings));
-  admin.post('/tournaments', ok(engine.createTournament));
-  admin.put('/players', ok(engine.savePlayers));
-  admin.post('/players/import', ok(parseUpload));
-  admin.post('/start', ok(engine.startDraw));
-  admin.post('/draw', ok(engine.draw));
-  admin.post('/undo', ok(engine.undo));
-  admin.post('/finalize', ok(engine.finalize));
-  admin.get('/tournaments', async (req, res) => res.json(await engine.listTournaments(ev)));
+  admin.get('/admin', requireAdmin, async (req, res) => res.json(await engine.adminState(ev)));
+  admin.patch('/tournament', requireAdmin, ok(engine.updateSettings));
+  admin.post('/tournaments', requireAdmin, ok(engine.createTournament));
+  admin.put('/players', requireAdmin, ok(engine.savePlayers));
+  admin.post('/players/import', requireAdmin, ok(parseUpload));
+  admin.post('/start', requireAdmin, ok(engine.startDraw));
+  admin.post('/draw', requireAdmin, ok(engine.draw));
+  admin.post('/undo', requireAdmin, ok(engine.undo));
+  admin.post('/finalize', requireAdmin, ok(engine.finalize));
+  admin.get('/tournaments', requireAdmin, async (req, res) => res.json(await engine.listTournaments(ev)));
   // ?tournament=<id> exports an archived tournament; without it, the active one.
-  admin.get('/export.xlsx', async (req, res) => {
+  admin.get('/export.xlsx', requireAdmin, async (req, res) => {
     const { buffer, name } = await exportWorkbook(req.query.tournament, ev);
     const file = `${name.replace(/[^\w -]+/g, '').trim() || 'team-draw'}.xlsx`;
     res.attachment(file).type('xlsx').send(Buffer.from(buffer));

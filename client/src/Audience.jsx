@@ -83,7 +83,9 @@ export function useLeaderboard(state) {
   const lastKey = state?.last ? `${state.id}:${state.last.actionId}` : state?.id;
   useEffect(() => {
     if (!state || state.status === 'DRAFT') return;
-    api(`/leaderboard?voter=${encodeURIComponent(voterId())}`).then(setBoard, () => {});
+    // Every phone refreshes after each reveal; spread the requests over ~1.5 s instead of all at once.
+    const timer = setTimeout(() => api(`/leaderboard?voter=${encodeURIComponent(voterId())}`).then(setBoard, () => {}), Math.random() * 1500);
+    return () => clearTimeout(timer);
   }, [lastKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return board;
 }

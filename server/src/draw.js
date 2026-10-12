@@ -24,15 +24,39 @@ let io = null;
 export const setIo = server => { io = server; };
 export const roomOf = ev => `event:${eventOf(ev)}`;
 const emit = (ev, name, data) => io?.to(roomOf(ev)).emit(name, data);
+// Read cache for the public state: GET /state is served from the last computed state for up to
+// 1 s. Every mutation and every reveal broadcasts a fresh state, which also refreshes this cache,
+// so readers never see an older state than the live screens — and never anything early (the
+// cached copy can only be MORE hidden, never less). Protects the server from 1,000 phones.
+const STATE_TTL = 1000;
+const stateCache = new Map(); // ev -> { at, value }
+const epoch = new Map(); // ev -> bumps on every change (also used by the leaderboard cache)
+export const changeEpoch = ev => epoch.get(eventOf(ev)) ?? 0;
+export async function cachedPublicState(ev = 'main') {
+  const hit = stateCache.get(eventOf(ev));
+  if (hit && Date.now() - hit.at < STATE_TTL) return hit.value;
+  const value = await publicState(undefined, ev);
+  stateCache.set(eventOf(ev), { at: Date.now(), value });
+  return value;
+}
 async function broadcast(ev) {
   try {
-    emit(ev, 'tournament:state', await publicState(undefined, ev));
+    epoch.set(eventOf(ev), changeEpoch(ev) + 1);
+    stateCache.delete(eventOf(ev));
+    const value = await publicState(undefined, ev);
+    stateCache.set(eventOf(ev), { at: Date.now(), value });
+    emit(ev, 'tournament:state', value);
   } catch (err) {
     console.error('broadcast failed', err);
   }
 }
 
-export const cleanName = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+// Canonical form of a player name. Unicode NFC (so "é" typed two different ways is one name) and
+// invisible characters removed (zero-width spaces/joiners, soft hyphens, BOM, bidi controls, other
+// control characters — often pasted from WhatsApp/Excel), so look-alike names can't bypass the
+// one-name-per-tournament rule. Whitespace runs collapse to one space.
+const INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F­​-‍⁠﻿‪-‮⁦-⁩]/g;
+export const cleanName = value => String(value ?? '').normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
 const keyOf = name => name.toLowerCase();
 const modeOf = category => (SHUFFLE.has(category) ? 'shuffle' : 'spin');
 export const isShuffle = category => SHUFFLE.has(category);

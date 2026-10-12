@@ -56,6 +56,7 @@ export async function submitGuess(body = {}, ev = 'main') {
   const { voterId, category, team } = body;
   if (typeof voterId !== 'string' || !/^[\w-]{8,64}$/.test(voterId)) fail(400, 'Bad voter id');
   if (!guessOverall('all') || !guessPerViewer(voterId)) fail(429, 'Slow down a little');
+  if (typeof body.nickname !== 'string' || typeof body.name !== 'string') fail(400, 'Nickname and player name must be text');
   const nickname = engine.cleanName(body.nickname);
   if (!nickname || nickname.length > 24) fail(400, 'Nickname must be 1–24 characters');
   const name = engine.cleanName(body.name);
@@ -75,7 +76,23 @@ export async function submitGuess(body = {}, ev = 'main') {
   return { ok: true, category, team, name };
 }
 
+// Every phone asks for the leaderboard right after a reveal. The ranking is computed once per
+// change (cached by the engine's change counter, max 2 s) and only "me" is computed per request.
+const boardCache = new Map(); // ev -> { epoch, at, value }
 export async function leaderboard({ voter } = {}, ev = 'main') {
+  const key = eventOf(ev);
+  const hit = boardCache.get(key);
+  let base = hit && hit.epoch === engine.changeEpoch(key) && Date.now() - hit.at < 2000 ? hit.value : null;
+  if (!base) {
+    base = await computeBoard(ev);
+    boardCache.set(key, { epoch: engine.changeEpoch(key), at: Date.now(), value: base });
+  }
+  const meIndex = voter ? base.ranked.findIndex(r => r.voterId === voter) : -1;
+  const me = meIndex >= 0 ? { rank: meIndex + 1, correct: base.ranked[meIndex].correct, total: base.ranked[meIndex].total } : null;
+  return { top: base.top, last: base.last, me, players: base.ranked.length };
+}
+
+async function computeBoard(ev) {
   const s = await engine.snapshot(undefined, ev);
   const guesses = await Guess.find({ tournamentId: s.t._id }).sort({ updatedAt: 1 }).lean();
   const result = new Map(s.revealed.map(e => [`${e.category}:${e.teamNumber}`, e.playerName]));
@@ -97,7 +114,5 @@ export async function leaderboard({ voter } = {}, ev = 'main') {
     const onIt = guesses.filter(g => g.category === lastSpin.category && g.teamNumber === lastSpin.teamNumber);
     last = { category: lastSpin.category, team: lastSpin.teamNumber, total: onIt.length, correct: onIt.filter(g => g.playerName === lastSpin.playerName).length };
   }
-  const meIndex = voter ? ranked.findIndex(r => r.voterId === voter) : -1;
-  const me = meIndex >= 0 ? { rank: meIndex + 1, correct: ranked[meIndex].correct, total: ranked[meIndex].total } : null;
-  return { top, last, me, players: ranked.length };
+  return { top, last, ranked };
 }

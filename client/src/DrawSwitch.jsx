@@ -17,7 +17,9 @@ export function DrawSwitch() {
     const load = () => Promise.all(DRAWS.map(d => fetch(d.api).then(r => r.json()).then(s => [d.key, s.status], () => [d.key, null])))
       .then(pairs => alive && setStatus(Object.fromEntries(pairs)));
     load();
-    const timer = setInterval(load, 20000);
+    // Badges only: refresh once a minute, and only while the page is visible (1,000 phones x
+    // 2 requests every 20 s would be a constant load on a small server).
+    const timer = setInterval(() => document.visibilityState === 'visible' && load(), 60000);
     return () => {
       alive = false;
       clearInterval(timer);
