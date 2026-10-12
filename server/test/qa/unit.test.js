@@ -88,10 +88,10 @@ test('UNIT-048 shuffle: every position reachable for each item (n=5, 5k samples)
 // ---------- headerCategory ----------
 const HEADERS = [
   ['A', 'A'], ['a', 'A'], ['A Player', 'A'], ['A Players', 'A'], ['Category A', 'A'], ['Cat B', 'B'], ['Group C', 'C'],
-  ['  d  ', 'D'], ['B-Players', 'B'], ['C_player', 'C'], ['Women', 'WOMEN'], ['WOMEN', 'WOMEN'], ['woman', 'WOMEN'],
+  ['  d  ', 'WOMEN'], ['B-Players', 'B'], ['C_player', 'C'], ['Women', 'WOMEN'], ['WOMEN', 'WOMEN'], ['woman', 'WOMEN'],
   ['Ladies', 'WOMEN'], ['W', 'WOMEN'], ['Icon Boy', 'ICON'], ['icon', 'ICON'], ['ICON BOYS', 'ICON'], ['Boy', 'BOY'],
   ['Boys', 'BOY'], ['boy players', 'BOY'], ['Girl', 'GIRL'], ['Girls', 'GIRL'], ['girl player', 'GIRL'], ['Girl Cat 1', 'GIRL1'], ['Girl Cat 2', 'GIRL2'], ['Boy Cat 1', 'ICON'], ['Boy Cat 2', 'BOY'], ['M1', 'A'], ['M2', 'B'], ['m3', 'C'], ['W1', 'WOMEN'], ['B1', 'ICON'], ['G1', 'GIRL1'], ['B2', 'BOY'], ['G2', 'GIRL2'], ['M1 Players', 'A'],
-  ['E', null], ['Notes', null], ['', null], ['Team', null], ['Category', null], ['Player', null], ['AB', null],
+  ['E', 'D'], ['F', null], ['Notes', null], ['', null], ['Team', null], ['Category', null], ['Player', null], ['AB', null],
   ['Men', null], ['123', null], ['Boyfriend', null], ['Girlfriend', null], ['Women Team', 'WOMEN'],
 ];
 for (const [i, [header, expected]] of HEADERS.entries()) {

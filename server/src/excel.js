@@ -38,10 +38,16 @@ export async function exportWorkbook(tournamentId, ev = 'main') {
   return { buffer: await wb.xlsx.writeBuffer(), name: s.t.name };
 }
 
-// Header cell -> category. Current names: M1 M2 M3 W1 (main), B1 G1 B2 G2 (kids). Older headers
-// still work: "A", "Category B", "Women", "Ladies", "Boy Cat 1", "Icon Boy", ...
+// Header cell -> category. Letters A B C D (per event), or group names M1 M2 M3 W1 / B1 G1 B2 G2.
+// Older headers still work: "Category B", "Women", "Ladies", "Boy Cat 1", "Icon Boy", ...
 const CODES = { m1: 'A', m2: 'B', m3: 'C', m4: 'D', w1: 'WOMEN', b1: 'ICON', g1: 'GIRL1', b2: 'BOY', g2: 'GIRL2' };
-export function headerCategory(text) {
+const LETTERS = {
+  main: { a: 'A', b: 'B', c: 'C', d: 'WOMEN', e: 'D' },
+  kids: { a: 'ICON', b: 'GIRL1', c: 'BOY', d: 'GIRL2' },
+};
+export function headerCategory(text, ev = 'main') {
+  const letter = String(text).toLowerCase().replace(/[^a-z0-9]/g, '').match(/^(?:category|cat|group)?([a-e])(?:players?|category|cat|group)?$/)?.[1];
+  if (letter) return LETTERS[ev === 'kids' ? 'kids' : 'main'][letter] ?? null;
   const h = String(text).toLowerCase().replace(/[^a-z]/g, '');
   const k = String(text).toLowerCase().replace(/[^a-z0-9]/g, '');
   const code = k.replace(/(players?|list|category|cat)$/, '');
@@ -52,12 +58,11 @@ export function headerCategory(text) {
   if (/^boys?(cat|category)?(2|two)?(players?)?$/.test(k)) return 'BOY';
   if (/^girls?(players?)?$/.test(h)) return 'GIRL';
   if (/^(wom[ae]n|ladies|w$)/.test(h)) return 'WOMEN';
-  const letter = h.match(/^(?:category|cat|group)?([abcd])(?:players?|category|cat|group)?$/)?.[1];
-  return letter ? letter.toUpperCase() : null;
+  return null;
 }
 
 // Upload = first sheet (or CSV) with a header row naming the categories, one name per cell below.
-export async function parseUpload({ filename, data } = {}) {
+export async function parseUpload({ filename, data } = {}, ev = 'main') {
   if (typeof filename !== 'string' || typeof data !== 'string') throw new HttpError(400, 'Send { filename, data (base64) }');
   const buffer = Buffer.from(data, 'base64');
   const wb = new ExcelJS.Workbook();
@@ -82,8 +87,8 @@ export async function parseUpload({ filename, data } = {}) {
   sheet?.eachRow({ includeEmpty: true }, row => {
     rows.push(Array.from({ length: sheet.columnCount }, (_, i) => cleanName(row.getCell(i + 1).text)));
   });
-  const columns = (rows[0] ?? []).map(headerCategory);
-  if (!columns.some(Boolean)) throw new HttpError(400, 'First row must name the categories: M1, M2, M3, W1 (kids: B1, G1, B2, G2)');
+  const columns = (rows[0] ?? []).map(h => headerCategory(h, ev));
+  if (!columns.some(Boolean)) throw new HttpError(400, 'First row must name the categories: A, B, C, D (or M1, M2, M3, W1 / kids B1, G1, B2, G2)');
   const lists = {};
   columns.forEach((c, i) => {
     if (c) lists[c] = rows.slice(1).map(r => r[i]).filter(Boolean);

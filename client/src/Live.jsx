@@ -24,7 +24,7 @@ export function Steps({ state }) {
     <ol className="steps" aria-label="Categories">
       {state.categories.map(c => (
         <li key={c.key} className={`step step-${c.state}`} aria-current={c.state === 'active' ? 'step' : undefined}>
-          <span className="step-label">{c.label}</span>
+          <span className="step-label">{c.chip ?? c.label}</span>
           <span className="step-count">{c.state === 'done' ? '✓' : `${c.assigned}/${state.teamCount}`}</span>
         </li>
       ))}

@@ -103,7 +103,8 @@ test(`${id()} captain data: the first shuffle round is flagged so screens can sh
 });
 test(`${id()} short codes: team cards get distinct codes (kids B1 G1 B2 G2)`, async () => {
   const k = await state(ctx, 'kids');
-  assert.deepEqual(k.categories.map(c => c.short), ['B1', 'G1', 'B2', 'G2']);
+  assert.deepEqual(k.categories.map(c => c.short), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(k.categories.map(c => c.chip), ['B1', 'G1', 'B2', 'G2']);
 });
 
 // ---------- predictions ----------

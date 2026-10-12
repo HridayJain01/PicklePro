@@ -4,17 +4,20 @@ const { Schema, model } = mongoose;
 
 export const TEAM_COUNT = 28;
 
-// Draw categories (rounds) and their display names. Each round draws from the player list of the
-// same key. Keys stay as stored in the database; people see the names:
-//   main: A = M1, B = M2, C = M3, WOMEN = W1 (D = M4, optional)
-//   kids: ICON = B1 (shuffled), GIRL1 = G1, BOY = B2, GIRL2 = G2
+// Draw categories (rounds). Each round draws from the player list of the same key. Keys stay as
+// stored in the database. People see a letter A–D everywhere (cards, stage, PDF, Excel, Know your
+// team); the category buttons at the top also carry the group name (CHIPS):
+//   main: A = M1, B = M2, C = M3, D = W1 (key WOMEN); optional fifth list (key D) = E / M4
+//   kids: A = B1 (key ICON, shuffled), B = G1, C = B2 (key BOY), D = G2
 // GIRL is the old shared girls list, kept only so older tournaments still load.
 export const LABELS = {
-  A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4',
-  ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2', GIRL: 'Girls (old list)',
+  A: 'A', B: 'B', C: 'C', WOMEN: 'D', D: 'E',
+  ICON: 'A', GIRL1: 'B', BOY: 'C', GIRL2: 'D', GIRL: 'Girls (old list)',
 };
-// Short codes for team cards (same as the names).
-export const SHORT = { A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4', ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2' };
+// Short codes for team cards (same letters).
+export const SHORT = { A: 'A', B: 'B', C: 'C', WOMEN: 'D', D: 'E', ICON: 'A', GIRL1: 'B', BOY: 'C', GIRL2: 'D' };
+// Group names shown on the category buttons only.
+export const CHIPS = { A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4', ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2', GIRL: 'Girls' };
 export const ALL_CATEGORIES = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2'];
 export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2', 'GIRL'];
 export const poolOf = category => category;

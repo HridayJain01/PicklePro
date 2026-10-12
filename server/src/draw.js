@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
-import { ALL_POOLS, DrawEvent, EVENTS, LABELS, Player, SHORT, SHUFFLE, Tournament, eventOf, poolOf } from './models.js';
+import { ALL_POOLS, CHIPS, DrawEvent, EVENTS, LABELS, Player, SHORT, SHUFFLE, Tournament, eventOf, poolOf } from './models.js';
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -170,6 +170,7 @@ export async function publicState(s, ev = 'main') {
       key,
       label: LABELS[key],
       short: SHORT[key],
+      chip: CHIPS[key],
       shuffle: SHUFFLE.has(key),
       state: t.status === 'COMPLETED' || i < t.currentIndex ? 'done' : key === current ? 'active' : 'upcoming',
       players: inPool(players, poolOf(key)).length,
@@ -210,8 +211,8 @@ export async function adminState(ev = 'main') {
   return {
     event: eventOf(ev),
     fixed: e.fixed,
-    available: e.available.map(key => ({ key, label: LABELS[key], shuffle: SHUFFLE.has(key) })),
-    pools: pools.map(key => ({ key, label: LABELS[key], needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
+    available: e.available.map(key => ({ key, label: `${LABELS[key]} (${CHIPS[key]})`, shuffle: SHUFFLE.has(key) })),
+    pools: pools.map(key => ({ key, label: `${LABELS[key]} (${CHIPS[key]})`, needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
     lists: Object.fromEntries(pools.map(c => [c, inPool(s.players, c).map(p => p.name)])),
     editable: Object.fromEntries(pools.map(c => [c, isEditable(s, c)])),
     history: historyRows(s),

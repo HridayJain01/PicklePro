@@ -232,6 +232,10 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-13 — Letters A–D everywhere, group names only on the category buttons
+- Everywhere (team cards, stage, Know your team, PDF, Excel, messages) shows A, B, C, D. Main: A=M1, B=M2, C=M3, D=W1 (key WOMEN); kids: A=B1, B=G1, C=B2, D=G2. Only the category buttons at the top (phones, admin, projector) show M1/M2/M3/W1 or B1/G1/B2/G2 ( field). Host setup lists read "D (W1)" etc.
+- Excel headers A B C D are read per event (main D = women, kids A = B1 ...); M1/W1/B1/G1 headers still work.
+
 ### 2026-10-12 — Category names M1/M2/M3/W1 and B1/G1/B2/G2, no captain, PDF fix
 - Display names everywhere (chips, cards, stage, PDF, Excel, errors): main A=M1, B=M2, C=M3, WOMEN=W1 (D=M4); kids ICON=B1, GIRL1=G1, BOY=B2, GIRL2=G2. Database keys unchanged. New main tournaments default to M1, M2, M3, W1 order (host can still reorder in Setup).
 - Excel import accepts M1 M2 M3 W1 / B1 G1 B2 G2 headers (old headers still work).

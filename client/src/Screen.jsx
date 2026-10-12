@@ -56,7 +56,7 @@ export function Screen() {
         {state && state.status !== 'DRAFT' && (
           <ol className="screen-steps">
             {state.categories.map(c => (
-              <li key={c.key} className={`step-${c.state}`}>{c.label}</li>
+              <li key={c.key} className={`step-${c.state}`}>{c.chip ?? c.label}</li>
             ))}
           </ol>
         )}
