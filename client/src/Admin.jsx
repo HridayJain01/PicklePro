@@ -10,7 +10,7 @@ import { ConnectionBanner, Header, Steps } from './Live.jsx';
 import { ResumeSoundPrompt, Stage } from './Stage.jsx';
 import { useLive } from './useLive.js';
 
-// Labels come from the server per event (letters A–D, with the group name in brackets: main D = W1, kids A = B1, ...).
+// Labels come from the server per event (letters A–D: main D = W1 women; kids A = B1, B = G1, C = B2, D = G2).
 const labelOf = (data, key) => data.pools.find(p => p.key === key)?.label ?? data.available.find(c => c.key === key)?.label ?? key;
 const toNames = text => text.split('\n').map(s => s.trim()).filter(Boolean);
 
@@ -342,6 +342,7 @@ function readBase64(file) {
 
 function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
   const [drafts, setDrafts] = useState({});
+  const [details, setDetails] = useState({}); // name -> { age, phone } from an imported spreadsheet
   const [note, setNote] = useState('');
   const dirty = Object.keys(drafts).length > 0;
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
@@ -349,7 +350,7 @@ function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
 
   const text = key => drafts[key] ?? data.lists[key].join('\n');
   const save = () => run(async () => {
-    await api('/players', { method: 'PUT', body: { lists: Object.fromEntries(Object.keys(drafts).map(k => [k, toNames(drafts[k])])) } });
+    await api('/players', { method: 'PUT', body: { lists: Object.fromEntries(Object.keys(drafts).map(k => [k, toNames(drafts[k])])), details } });
     await refresh();
     setDrafts({});
     setNote('Players saved.');
@@ -359,7 +360,8 @@ function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {
     e.target.value = '';
     if (!file) return;
     run(async () => {
-      const { lists } = await api('/players/import', { method: 'POST', body: { filename: file.name, data: await readBase64(file) } });
+      const { lists, details: imported } = await api('/players/import', { method: 'POST', body: { filename: file.name, data: await readBase64(file) } });
+      if (imported) setDetails(d => ({ ...d, ...imported }));
       const usable = Object.keys(lists).filter(k => categories.includes(k));
       if (!usable.length) throw new Error(`None of the file's columns match these lists: ${categories.map(k => labelOf(data, k)).join(', ')}.`);
       setDrafts(d => ({ ...d, ...Object.fromEntries(usable.map(k => [k, lists[k].join('\n')])) }));

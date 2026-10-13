@@ -6,7 +6,7 @@ export const TEAM_COUNT = 28;
 
 // Draw categories (rounds). Each round draws from the player list of the same key. Keys stay as
 // stored in the database. People see a letter A–D everywhere (cards, stage, PDF, Excel, Know your
-// team); the category buttons at the top also carry the group name (CHIPS):
+// team, category buttons). The organisers' spreadsheets use the codes in CODES:
 //   main: A = M1, B = M2, C = M3, D = W1 (key WOMEN); optional fifth list (key D) = E / M4
 //   kids: A = B1 (key ICON, shuffled), B = G1, C = B2 (key BOY), D = G2
 // GIRL is the old shared girls list, kept only so older tournaments still load.
@@ -16,8 +16,9 @@ export const LABELS = {
 };
 // Short codes for team cards (same letters).
 export const SHORT = { A: 'A', B: 'B', C: 'C', WOMEN: 'D', D: 'E', ICON: 'A', GIRL1: 'B', BOY: 'C', GIRL2: 'D' };
-// Group names shown on the category buttons only.
-export const CHIPS = { A: 'M1', B: 'M2', C: 'M3', WOMEN: 'W1', D: 'M4', ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2', GIRL: 'Girls' };
+// The organisers' spreadsheet codes and groups (auction player lists and the Excel export).
+export const CODES = { A: 'A', B: 'B', C: 'C', WOMEN: 'W1', D: 'D', ICON: 'B1', GIRL1: 'G1', BOY: 'B2', GIRL2: 'G2', GIRL: 'G' };
+export const GROUPS = { A: 'MEN', B: 'MEN', C: 'MEN', D: 'MEN', WOMEN: 'WOMEN', ICON: 'BOYS', BOY: 'BOYS', GIRL1: 'GIRLS', GIRL2: 'GIRLS', GIRL: 'GIRLS' };
 export const ALL_CATEGORIES = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2'];
 export const ALL_POOLS = ['A', 'WOMEN', 'B', 'C', 'D', 'ICON', 'BOY', 'GIRL1', 'GIRL2', 'GIRL'];
 export const poolOf = category => category;
@@ -62,6 +63,9 @@ const playerSchema = new Schema({
   category: { type: String, enum: ALL_POOLS, required: true }, // the player list (pool)
   name: { type: String, required: true },
   nameKey: { type: String, required: true },
+  // From the organisers' spreadsheet; only ever written to the host's Excel export.
+  age: { type: String, maxlength: 10 },
+  phone: { type: String, maxlength: 20 },
 }, { timestamps: true });
 // One name per tournament: blocks duplicates and a player sitting in two categories.
 playerSchema.index({ tournamentId: 1, nameKey: 1 }, { unique: true });

@@ -232,6 +232,11 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-13 — Organisers' auction spreadsheets: import + export; A-D on buttons too
+- Import reads the organisers' row format (Category | group | Name | AGE | CONTACT NUMBER, blocks side by side): main codes A, B, C, W1 (or D) and kids B1, G1, B2, G2. The four real files (MEN A B C, WOMEN, Boys, Girls) import as 28/28/28/28 and 4/4/4/4. Importing several files adds to the lists. Age and contact are saved with each player (kept across later list edits) and appear only in the host Excel export, never in public state.
+- Export adds a Players sheet in the same layout plus TEAM.
+- Category buttons now show A, B, C, D as well (no M1/W1/B1 names anywhere in the UI).
+
 ### 2026-10-13 — Letters A–D everywhere, group names only on the category buttons
 - Everywhere (team cards, stage, Know your team, PDF, Excel, messages) shows A, B, C, D. Main: A=M1, B=M2, C=M3, D=W1 (key WOMEN); kids: A=B1, B=G1, C=B2, D=G2. Only the category buttons at the top (phones, admin, projector) show M1/M2/M3/W1 or B1/G1/B2/G2 (chip field). Host setup lists read "D (W1)" etc.
 - Excel headers A B C D are read per event (main D = women, kids A = B1 ...); M1/W1/B1/G1 headers still work.

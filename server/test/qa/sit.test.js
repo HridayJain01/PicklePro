@@ -101,10 +101,9 @@ test(`${id()} captain data: the first shuffle round is flagged so screens can sh
   const k = await state(ctx, 'kids');
   assert.equal(k.categories.find(c => c.key === 'ICON').shuffle, true);
 });
-test(`${id()} short codes: team cards get distinct codes (kids B1 G1 B2 G2)`, async () => {
+test(`${id()} short codes: team cards get distinct codes (kids A B C D)`, async () => {
   const k = await state(ctx, 'kids');
   assert.deepEqual(k.categories.map(c => c.short), ['A', 'B', 'C', 'D']);
-  assert.deepEqual(k.categories.map(c => c.chip), ['B1', 'G1', 'B2', 'G2']);
 });
 
 // ---------- predictions ----------
@@ -375,4 +374,27 @@ test(`${id()} cache: leaderboard reflects a reveal immediately (not a stale cach
 test(`${id()} cache: main and kids caches are separate`, async () => {
   const m = await state(ctx); const k = await state(ctx, 'kids');
   assert.equal(m.event, 'main'); assert.equal(k.event, 'kids'); assert.notEqual(m.id, k.id);
+});
+
+test(`${id()} import: organisers' auction format (Category / Name / AGE / CONTACT, side-by-side blocks) and export round trip`, async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Sheet1');
+  ws.addRow(['Category', '', 'Name', 'AGE', 'CONTACT NUMBER', '', 'Category', '', 'Name', 'AGE', 'CONTACT NUMBER']);
+  for (let i = 1; i <= 28; i++) ws.addRow(['A', 'MEN', `Amen ${i}`, 30 + (i % 9), 9800000000 + i, '', 'W1', 'WOMEN', `Wom ${i}`, 25, 9900000000 + i]);
+  const data = Buffer.from(await wb.xlsx.writeBuffer()).toString('base64');
+  const r = await ok(ctx, '/players/import', { method: 'POST', body: { filename: 'MEN.xlsx', data } });
+  assert.equal(r.lists.A.length, 28); assert.equal(r.lists.WOMEN.length, 28);
+  assert.deepEqual(r.details['Amen 1'], { age: '31', phone: '9800000001' });
+  await ok(ctx, '/tournaments', { method: 'POST', body: { name: 'Auction import' } });
+  await ok(ctx, '/tournament', { method: 'PATCH', body: { categories: ['A', 'WOMEN'] } });
+  await ok(ctx, '/players', { method: 'PUT', body: { lists: r.lists, details: r.details } });
+  // Phone numbers never reach the public state.
+  assert.ok(!JSON.stringify(await state(ctx)).includes('9800000001'));
+  const x = await raw(ctx, '/export.xlsx');
+  const out = new ExcelJS.Workbook();
+  await out.xlsx.load(x.body);
+  const sheet = out.getWorksheet('Players');
+  assert.deepEqual([1, 3, 4, 5, 6].map(n => sheet.getRow(1).getCell(n).text), ['Category', 'Name', 'AGE', 'CONTACT NUMBER', 'TEAM']);
+  assert.deepEqual([sheet.getRow(2).getCell(1).text, sheet.getRow(2).getCell(2).text, sheet.getRow(2).getCell(3).text, sheet.getRow(2).getCell(4).text, sheet.getRow(2).getCell(5).text], ['A', 'MEN', 'Amen 1', '31', '9800000001']);
+  assert.equal(sheet.getRow(30).getCell(1).text, 'W1'); assert.equal(sheet.getRow(30).getCell(2).text, 'WOMEN');
 });

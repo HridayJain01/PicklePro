@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
-import { ALL_POOLS, CHIPS, DrawEvent, EVENTS, LABELS, Player, SHORT, SHUFFLE, Tournament, eventOf, poolOf } from './models.js';
+import { ALL_POOLS, DrawEvent, EVENTS, LABELS, Player, SHORT, SHUFFLE, Tournament, eventOf, poolOf } from './models.js';
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -170,7 +170,6 @@ export async function publicState(s, ev = 'main') {
       key,
       label: LABELS[key],
       short: SHORT[key],
-      chip: CHIPS[key],
       shuffle: SHUFFLE.has(key),
       state: t.status === 'COMPLETED' || i < t.currentIndex ? 'done' : key === current ? 'active' : 'upcoming',
       players: inPool(players, poolOf(key)).length,
@@ -211,8 +210,8 @@ export async function adminState(ev = 'main') {
   return {
     event: eventOf(ev),
     fixed: e.fixed,
-    available: e.available.map(key => ({ key, label: `${LABELS[key]} (${CHIPS[key]})`, shuffle: SHUFFLE.has(key) })),
-    pools: pools.map(key => ({ key, label: `${LABELS[key]} (${CHIPS[key]})`, needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
+    available: e.available.map(key => ({ key, label: LABELS[key], shuffle: SHUFFLE.has(key) })),
+    pools: pools.map(key => ({ key, label: LABELS[key], needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
     lists: Object.fromEntries(pools.map(c => [c, inPool(s.players, c).map(p => p.name)])),
     editable: Object.fromEntries(pools.map(c => [c, isEditable(s, c)])),
     history: historyRows(s),
@@ -303,7 +302,7 @@ export const updateSettings = (body, ev = 'main') => locked(async () => {
   await broadcast(ev);
 });
 
-export const savePlayers = ({ lists } = {}, ev = 'main') => locked(async () => {
+export const savePlayers = ({ lists, details } = {}, ev = 'main') => locked(async () => {
   if (!lists || typeof lists !== 'object' || Array.isArray(lists)) fail(400, 'lists must be an object');
   const s = await snapshot(undefined, ev);
   const allowed = new Set(EVENTS[eventOf(ev)].available.map(poolOf));
@@ -328,8 +327,17 @@ export const savePlayers = ({ lists } = {}, ev = 'main') => locked(async () => {
     }
   }
   if (errors.length) fail(400, errors.slice(0, 10).join('\n'));
+  // Age / contact: from this save's details (by name), else kept from the previous save.
+  const known = new Map(s.players.map(p => [p.nameKey, { age: p.age, phone: p.phone }]));
+  const given = new Map(details && typeof details === 'object' && !Array.isArray(details)
+    ? Object.entries(details).map(([n, v]) => [keyOf(cleanName(n)), v]) : []);
+  const extra = name => {
+    const v = given.get(keyOf(name)) ?? known.get(keyOf(name)) ?? {};
+    const text = (x, max) => (x === undefined || x === null || x === '' ? undefined : String(x).trim().slice(0, max));
+    return { age: text(v.age, 10), phone: text(v.phone, 20) };
+  };
   await Player.deleteMany({ tournamentId: s.t._id, category: { $in: cats } });
-  await Player.insertMany(cats.flatMap(c => cleaned[c].map(name => ({ tournamentId: s.t._id, category: c, name, nameKey: keyOf(name) }))));
+  await Player.insertMany(cats.flatMap(c => cleaned[c].map(name => ({ tournamentId: s.t._id, category: c, name, nameKey: keyOf(name), ...extra(name) }))));
   await broadcast(ev);
 });
 
