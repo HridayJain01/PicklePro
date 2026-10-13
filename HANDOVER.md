@@ -232,6 +232,9 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-13 — PDF report redesigned as team cards
+- PDF = the organiser's requested format: navy team cards (team number, then A/B/C/D + player), same look as the app board. Main: 3 cards across, 2 pages for 28 teams; kids: 2 across, 1 page. Only client/src/report.js changed. Samples in marketing/.
+
 ### 2026-10-13 — Organisers' auction spreadsheets: import + export; A-D on buttons too
 - Import reads the organisers' row format (Category | group | Name | AGE | CONTACT NUMBER, blocks side by side): main codes A, B, C, W1 (or D) and kids B1, G1, B2, G2. The four real files (MEN A B C, WOMEN, Boys, Girls) import as 28/28/28/28 and 4/4/4/4. Importing several files adds to the lists. Age and contact are saved with each player (kept across later list edits) and appear only in the host Excel export, never in public state.
 - Export adds a Players sheet in the same layout plus TEAM.
