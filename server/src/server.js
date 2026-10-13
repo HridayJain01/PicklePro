@@ -30,6 +30,7 @@ function eventApi(ev) {
   admin.patch('/tournament', requireAdmin, ok(engine.updateSettings));
   admin.post('/tournaments', requireAdmin, ok(engine.createTournament));
   admin.put('/players', requireAdmin, ok(engine.savePlayers));
+  admin.put('/players/details', requireAdmin, ok(engine.updateDetails));
   admin.post('/players/import', requireAdmin, ok(parseUpload));
   admin.post('/start', requireAdmin, ok(engine.startDraw));
   admin.post('/draw', requireAdmin, ok(engine.draw));

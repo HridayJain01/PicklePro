@@ -315,3 +315,7 @@
 .draw-badge.live { background: #e5383b; color: #fff; }
 .draw-switch a.active .draw-badge { background: var(--net); color: var(--ball); }
 .draw-switch a.active .draw-badge.live { background: #e5383b; color: #fff; }
+
+/* Host: ages & phone numbers card */
+.contact-edit { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.contact-edit input { min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 0.3); background: rgb(255 255 255 / 0.08); color: inherit; font: inherit; }

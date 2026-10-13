@@ -213,6 +213,8 @@ export async function adminState(ev = 'main') {
     available: e.available.map(key => ({ key, label: LABELS[key], shuffle: SHUFFLE.has(key) })),
     pools: pools.map(key => ({ key, label: LABELS[key], needed: s.t.categories.some(c => poolOf(c) === key) ? neededFor(s.t, key) : null })),
     lists: Object.fromEntries(pools.map(c => [c, inPool(s.players, c).map(p => p.name)])),
+    // Host only: age / contact from the organisers' spreadsheet, for the PDF report.
+    details: Object.fromEntries(s.players.filter(p => p.age || p.phone).map(p => [p.name, { age: p.age ?? '', phone: p.phone ?? '' }])),
     editable: Object.fromEntries(pools.map(c => [c, isEditable(s, c)])),
     history: historyRows(s),
   };
@@ -339,6 +341,27 @@ export const savePlayers = ({ lists, details } = {}, ev = 'main') => locked(asyn
   await Player.deleteMany({ tournamentId: s.t._id, category: { $in: cats } });
   await Player.insertMany(cats.flatMap(c => cleaned[c].map(name => ({ tournamentId: s.t._id, category: c, name, nameKey: keyOf(name), ...extra(name) }))));
   await broadcast(ev);
+});
+
+// Host: correct ages / contact numbers at any time (even after drawing). Matches players by name;
+// never changes lists or results. Returns how many players were updated.
+export const updateDetails = ({ details } = {}, ev = 'main') => locked(async () => {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) fail(400, 'details must be an object');
+  const s = await snapshot(undefined, ev);
+  const byKey = new Map(s.players.map(p => [p.nameKey, p]));
+  const text = (x, max) => (x === undefined || x === null ? undefined : String(x).trim().slice(0, max));
+  let updated = 0;
+  for (const [name, v] of Object.entries(details).slice(0, 500)) {
+    const p = byKey.get(keyOf(cleanName(name)));
+    if (!p || !v || typeof v !== 'object') continue;
+    const set = {};
+    if (v.age !== undefined) set.age = text(v.age, 10);
+    if (v.phone !== undefined) set.phone = text(v.phone, 20);
+    if (!Object.keys(set).length) continue;
+    await Player.updateOne({ _id: p._id }, { $set: set });
+    updated++;
+  }
+  return { updated };
 });
 
 export const createTournament = ({ name } = {}, ev = 'main') => locked(async () => {

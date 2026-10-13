@@ -398,3 +398,16 @@ test(`${id()} import: organisers' auction format (Category / Name / AGE / CONTAC
   assert.deepEqual([sheet.getRow(2).getCell(1).text, sheet.getRow(2).getCell(2).text, sheet.getRow(2).getCell(3).text, sheet.getRow(2).getCell(4).text, sheet.getRow(2).getCell(5).text], ['A', 'MEN', 'Amen 1', '31', '9800000001']);
   assert.equal(sheet.getRow(30).getCell(1).text, 'W1'); assert.equal(sheet.getRow(30).getCell(2).text, 'WOMEN');
 });
+
+test(`${id()} details: host can fix an age / number after drawing; never public; anonymous refused`, async () => {
+  const s = await fresh(ctx, { categories: ['WOMEN'] });
+  await spin(ctx);
+  const drawn = (await state(ctx)).teams[0].players.WOMEN;
+  assert.equal((await raw(ctx, '/players/details', { method: 'PUT', auth: false, body: { details: { [drawn]: { phone: '9833174584' } } } })).status, 401);
+  const r = await ok(ctx, '/players/details', { method: 'PUT', body: { details: { [drawn]: { age: '34', phone: '+91 98331 74584' }, 'Nobody Here': { phone: '1' } } } });
+  assert.equal(r.updated, 1);
+  assert.deepEqual((await ok(ctx, '/admin')).details[drawn], { age: '34', phone: '+91 98331 74584' });
+  assert.ok(!JSON.stringify(await state(ctx)).includes('98331'));
+  assert.equal((await raw(ctx, '/players/details', { method: 'PUT', body: { details: [] } })).status, 400);
+  assert.equal(s.event, 'main');
+});

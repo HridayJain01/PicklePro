@@ -142,6 +142,7 @@ function Dashboard({ onLogout }) {
           <ResumeSoundPrompt />
           <section className="admin-extras">
             <UpcomingLists {...ctx} />
+            <PlayerContacts {...ctx} />
             <History history={data.history} />
             <Archive state={state} />
             <NewTournament {...ctx} />
@@ -156,7 +157,7 @@ function Controls({ state, data, run, busy, show, connected }) {
   if (state.status === 'COMPLETED') {
     return (
       <div className="controls">
-        <button className="btn btn-spin" disabled={busy} onClick={() => run(() => downloadReport(state))}>Download PDF report</button>
+        <button className="btn btn-spin" disabled={busy} onClick={() => run(() => downloadReport(state, { details: data?.details }))}>Download PDF report</button>
         <div className="controls-row">
           <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadGallery(state))}>Teams gallery image</button>
           <a className="btn btn-small" href={`${apiBase()}/export.xlsx`}>Export Excel</a>
@@ -204,7 +205,7 @@ function Controls({ state, data, run, busy, show, connected }) {
       <div className="controls-row">
         <button className="btn btn-small" disabled={busy || !canUndo || !connected} onClick={undo}>Undo last draw</button>
         <a className="btn btn-small" href={`${apiBase()}/export.xlsx`}>Export Excel</a>
-        <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadReport(state))}>PDF report</button>
+        <button className="btn btn-small" disabled={busy} onClick={() => run(() => downloadReport(state, { details: data?.details }))}>PDF report</button>
       </div>
       {data.history.length === 0 && <p className="controls-note">Spin results are saved the moment they're drawn.</p>}
       <PredictionSwitch state={state} run={run} busy={busy} />
@@ -338,6 +339,51 @@ function readBase64(file) {
     reader.onerror = () => reject(new Error("Couldn't read that file."));
     reader.readAsDataURL(file);
   });
+}
+
+// Ages and contact numbers (for the PDF): fix one player, or reload them from the organisers'
+// Excel files. Works at any time, even after the draw, and never changes teams.
+function PlayerContacts({ data, run, busy, refresh }) {
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [phone, setPhone] = useState('');
+  const [note, setNote] = useState('');
+  const all = Object.values(data.lists ?? {}).flat();
+  const pick = value => {
+    setName(value);
+    const d = data.details?.[value];
+    if (d) { setAge(d.age ?? ''); setPhone(d.phone ?? ''); }
+  };
+  const save = () => run(async () => {
+    const r = await api('/players/details', { method: 'PUT', body: { details: { [name]: { age, phone } } } });
+    setNote(r.updated ? `Saved ${name}.` : `No player called "${name}".`);
+    await refresh();
+  });
+  const fromFile = file => run(async () => {
+    const { details } = await api('/players/import', { method: 'POST', body: { filename: file.name, data: await readBase64(file) } });
+    if (!details) throw new Error('That file has no AGE / CONTACT NUMBER columns.');
+    const r = await api('/players/details', { method: 'PUT', body: { details } });
+    setNote(`Updated ages / numbers for ${r.updated} players from ${file.name}.`);
+    await refresh();
+  });
+  return (
+    <section className="card">
+      <h2>Ages &amp; phone numbers (PDF)</h2>
+      <p className="hint">{Object.keys(data.details ?? {}).length} of {all.length} players have an age or number. They appear only in the PDF and Excel, never on screens.</p>
+      <label className="btn btn-small">
+        Load from Excel file
+        <input type="file" accept=".xlsx,.csv" hidden disabled={busy} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) fromFile(f); }} />
+      </label>
+      <div className="contact-edit">
+        <input list="contact-names" placeholder="Player name" value={name} onChange={e => pick(e.target.value)} />
+        <datalist id="contact-names">{all.map(n => <option key={n} value={n} />)}</datalist>
+        <input placeholder="Age" value={age} onChange={e => setAge(e.target.value)} style={{ width: '5em' }} />
+        <input placeholder="Phone number" value={phone} onChange={e => setPhone(e.target.value)} />
+        <button className="btn btn-small" disabled={busy || !name} onClick={save}>Save</button>
+      </div>
+      {note && <p className="hint">{note}</p>}
+    </section>
+  );
 }
 
 function PlayerLists({ categories, state, data, run, busy, refresh, onDirty }) {

@@ -23,7 +23,7 @@ function loadImage(src) {
   });
 }
 
-export async function downloadReport(state, { save = true } = {}) {
+export async function downloadReport(state, { save = true, details = {} } = {}) {
   let jsPDF;
   try {
     ({ jsPDF } = await import('jspdf'));
@@ -45,8 +45,10 @@ export async function downloadReport(state, { save = true } = {}) {
   const HEADER = 30;
   const cols = state.teamCount > 8 ? 3 : 2;
   const cardW = (W - 2 * M - GAP * (cols - 1)) / cols;
-  const lineH = 7;
-  const cardH = 15 + cats.length * lineH + 3;
+  // With ages / numbers each player takes two lines: name, then "Age 45 · 98200 58599".
+  const hasDetails = Object.keys(details ?? {}).length > 0;
+  const lineH = hasDetails ? 10.5 : 7;
+  const cardH = 15 + cats.length * lineH + (hasDetails ? 0 : 3);
   const rowsPerPage = Math.max(1, Math.floor((H - HEADER - M + GAP) / (cardH + GAP)));
   const perPage = rowsPerPage * cols;
 
@@ -94,6 +96,27 @@ export async function downloadReport(state, { save = true } = {}) {
       while (size > 7 && doc.getStringUnitWidth(shown) * size / doc.internal.scaleFactor > room) size -= 0.5;
       doc.setFontSize(size);
       doc.text(shown, x + 18, ly);
+      const info = name ? details?.[name] : null;
+      if (info && (info.age || info.phone)) {
+        const iy = ly + 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...MUTED);
+        let ix = x + 18;
+        if (info.age) {
+          const t = `Age ${info.age}`;
+          doc.text(t, ix, iy);
+          ix += doc.getTextWidth(t) + 3;
+        }
+        const digits = String(info.phone ?? '').replace(/\D/g, '');
+        if (digits) {
+          // Tap to call: opens the phone's dialler.
+          const tel = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+          const shown10 = digits.length === 10 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : info.phone;
+          doc.setTextColor(...YELLOW);
+          doc.textWithLink(shown10, ix, iy, { url: `tel:${tel}` });
+        }
+      }
     });
   };
 

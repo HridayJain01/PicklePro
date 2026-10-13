@@ -232,6 +232,10 @@ Host "ready check" panel (server awake, test sound), real recorded slot sound fi
 
 Newest first. Add an entry for every change.
 
+### 2026-10-13 — PDF shows age + tap-to-call number per player; contacts tool
+- PDF: under each name, Age and the phone number as a tel: link (+91 added to 10-digit numbers). Data comes from /admin (host only) as details; public state never has it.
+- Admin card "Ages & phone numbers (PDF)": fix one player's age/number, or reload ages/numbers from the organisers' Excel files, at any time (even after the draw). New host route PUT /players/details; it never changes lists or teams.
+
 ### 2026-10-13 — PDF report redesigned as team cards
 - PDF = the organiser's requested format: navy team cards (team number, then A/B/C/D + player), same look as the app board. Main: 3 cards across, 2 pages for 28 teams; kids: 2 across, 1 page. Only client/src/report.js changed. Samples in marketing/.
 
